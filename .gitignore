@@ -1,0 +1,33 @@
+# Julia output files
+*.jl.cov
+*.jl.*.cov
+*.jl.mem
+deps/deps.jl
+
+# figures
+figures/*
+project1_simplified_figures/*
+*.pdf
+*.gif
+
+# simulation output files
+output/*
+
+# LaTeX/pdfLaTeX auxiliary files
+*.aux
+*.log
+*.out
+*.synctex.gz
+*.fdb_latexmk
+*.fls
+*.dvi
+
+# Bibliography auxiliary files
+*.bbl
+*.blg
+
+# MacOS nuisance file
+.DS_Store
+
+# nohup output file
+nohup.out
