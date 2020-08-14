@@ -102,8 +102,8 @@ module Institutions
 			# begin by initializing the population with random strategies
 			strategies = rand(initial_strategies, N)
 			# randomize institution members' private reputations
-			#priv_reputations = rand([0, 1], Q, N)
-			priv_reputations = ones(Int64, Q, N)
+			priv_reputations = rand([0, 1], Q, N)
+			#priv_reputations = ones(Int64, Q, N)
 			pub_reputations = zeros(Int64, N)
 			# broadcast the institutional reputations to public
 			[pub_reputations[x] = (sum(priv_reputations[:,x])> q*Q) for x in 1:N]
@@ -247,20 +247,24 @@ module Institutions
 		for (i, j) in filter(x -> x[1] < x[2], collect(Base.product(1:pop.N,1:pop.N)))
 			if pop.verbose println("updating actions of $i and $j") end
 
-			# the "minimum" here essentially makes it so that defectors never accidentally cooperate
-			# this is what is done in the theoretical literature
+			# if the random number is larger than the error rate, do the intended action
+			# else, defect
+			i_rand = rand()
 			i_intended_action = determine_action(pop.strategies[i], pop.pub_reputations[j])
-			rand() > pop.game.u_p ? i_action = i_intended_action : i_action = minimum([1 - i_intended_action,0])
+			i_rand > pop.game.u_p ? i_action = i_intended_action : i_action = 0
 			# repeat with j
+			j_rand = rand()
 			j_intended_action = determine_action(pop.strategies[j], pop.pub_reputations[i])
-			rand() > pop.game.u_p ? j_action = j_intended_action : j_action = minimum([1 - j_intended_action,0])
+			j_rand > pop.game.u_p ? j_action = j_intended_action : j_action = 0
 
 			if pop.verbose
 				println("$i's strategy is $(pop.strategies[i])")
 				println("$j's reputation is $(pop.pub_reputations[j])")
+				println("$i's random number was $i_rand")
 				println("$i intended to do $i_intended_action and did $i_action")
 				println("$j's strategy is $(pop.strategies[j])")
 				println("$i's reputation is $(pop.pub_reputations[i])")
+				println("$j's random number was $j_rand")
 				println("$j intended to do $j_intended_action and did $j_action")
 				println("$i earns a payoff of $(pop.game.A[i_action+1, j_action+1])")
 				println("$j earns a payoff of $(pop.game.A[j_action+1, i_action+1])")
@@ -298,11 +302,13 @@ module Institutions
 				action = pop.prev_actions[i,j]
 				# apply the stern judging norm to determine i's reputation within set k
 				normed_reputation = reputation_norm(action, pop.pub_reputations[j], pop.norm)
-				rand() > pop.game.u_a ? new_priv_reputations[k,i] = normed_reputation : new_priv_reputations[k,i] = 1 - normed_reputation
+				rep_rand = rand()
+				rep_rand > pop.game.u_a ? new_priv_reputations[k,i] = normed_reputation : new_priv_reputations[k,i] = 1 - normed_reputation
 				if pop.verbose
 					println("$k analyzes $i's behavior toward $j")
 					println("$i did $action and $j's reputation is $(pop.pub_reputations[j])")
-					println("the norm predicts that $i's reputation be $normed_reputation")
+					println("the norm \"$(pop.norm)\" predicts that $i's reputation be $normed_reputation")
+					println("the random number is $rep_rand")
 					println("$k judges $i's reputation to be $(new_priv_reputations[k,i])")
 				end
 			end

@@ -163,7 +163,7 @@ function main(args)
             flush(stdout)
 
 			game = Game(b, c, w, u_s, u_p, u_a, "pc")
-			pop = Population(N, Q, q, game, reputation_norm)
+			pop = Population(N, Q, q, game, reputation_norm, permitted_strategies)
 
 			total_interactions = N*(N-1)
 
@@ -235,4 +235,4 @@ end
 
 #main(ARGS)
 
-main(["--input", "submit/test_institutions_noRDisc.json"])
+main(["--input", "submit/test_institutions_noRDisc_quick.json"])

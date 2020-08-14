@@ -1,7 +1,7 @@
 {
   "N":
   {
-    "value": 50
+    "value": 100
   },
   "Q":
   {
@@ -53,6 +53,6 @@
   },
   "output":
   {
-    "value": "output/test_institutions_noRDisc_2.csv"
+    "value": "output/test_institutions_noRDisc_large.csv"
   }
 }
