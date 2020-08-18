@@ -4,7 +4,8 @@
 ##
 ## Author: Taylor Kessinger <tkess@sas.upenn.edu>
 ## Module for simulating cooperation and defection
-## when reputations are tracked by institutions.
+## when reputations are tracked individually
+## but individuals can empathetically mimic others' judgments.
 ## Adapted from work by Arunas Radzvilavicius.
 
 # Outline:
@@ -23,7 +24,7 @@
 
 # TODO: add empathy parameter, write new reputations function
 
-module Institutions
+module Empathy
 
 	using Random, StatsBase, Combinatorics
 
@@ -76,15 +77,12 @@ module Institutions
 		# the population of individuals and all information about them
 
 		N::Int64 # not mutable: population size
-		Q::Int64 # not mutable: institution size
-		q::Float64 # not mutable: threshold of institution members
-			# who need to agree that someone's reputation is ``good''
+		E::Float64 # not mutable: empathy parameter
 		game::Game
 		norm::String
 		strategies::Array{Int64, 1} # array of reputation assessment strategies
 		priv_reputations::Array{Int64, 2} # institution members' private assessments
 			# of the entire population
-		pub_reputations::Array{Int64, 1} # everyone's public reputation
 		prev_actions::Array{Int64, 2} # the last action each individual took toward each other
 		fitnesses::Array{Float64, 1} # array of fitnesses
 		permitted_strategies::Array{Int64, 1} # which strategies are allowed to appear
@@ -94,8 +92,7 @@ module Institutions
 		# constructor if sets and game are already specified
 		function Population(
 			N::Int64,
-			Q::Int64,
-			q::Float64,
+			E::Float64,
 			game::Game,
 			norm::String,
 			initial_strategies::Array{Int64, 1}=[1,2,3,4],
@@ -104,18 +101,14 @@ module Institutions
 			# begin by initializing the population with random strategies
 			strategies = rand(initial_strategies, N)
 			#strategies = 2*ones(Int64, N)
-			# randomize institution members' private reputations
-			priv_reputations = rand([0, 1], Q, N)
-			#priv_reputations = ones(Int64, Q, N)
-			pub_reputations = zeros(Int64, N)
-			# broadcast the institutional reputations to public
-			[pub_reputations[x] = (sum(priv_reputations[:,x])> q*Q) for x in 1:N]
+			# randomize individuals' private reputations
+			priv_reputations = rand([0, 1], N, N)
 			# previous actions and fitnesses start at zero (these will get updated)
 			prev_actions = zeros(Int64, N, N)
 			fitnesses = zeros(Float64, N)
 			permitted_strategies = initial_strategies
 			generation = 0
-			return new(N, Q, q, game, norm, strategies, priv_reputations, pub_reputations,
+			return new(N, E, game, norm, strategies, priv_reputations,
 				prev_actions, fitnesses, permitted_strategies, generation, verbose)
 		end
 	end
@@ -202,7 +195,7 @@ module Institutions
 			update_actions_and_fitnesses!(pop)
 			# then make sure everyone's reputations are updated
 			if pop.verbose println("updating reputations") end
-			update_reputations!(pop)
+			update_reputations_empathy!(pop)
 			# then, finally, select a pair of individuals whose fitnesses we will compare
 			if pop.verbose println("updating strategy") end
 			if pop.game.update_rule ∈ ["pc", "pairwise_comparison", "im", "imitation"]
@@ -250,20 +243,20 @@ module Institutions
 			# if the random number is larger than the error rate, do the intended action
 			# else, defect
 			i_rand = rand()
-			i_intended_action = determine_action(pop.strategies[i], pop.pub_reputations[j])
+			i_intended_action = determine_action(pop.strategies[i], pop.priv_reputations[i,j])
 			i_rand > pop.game.u_p ? i_action = i_intended_action : i_action = 0
 			# repeat with j
 			j_rand = rand()
-			j_intended_action = determine_action(pop.strategies[j], pop.pub_reputations[i])
+			j_intended_action = determine_action(pop.strategies[j], pop.priv_reputations[j,i])
 			j_rand > pop.game.u_p ? j_action = j_intended_action : j_action = 0
 
 			if pop.verbose
 				println("$i's strategy is $(pop.strategies[i])")
-				println("$j's reputation is $(pop.pub_reputations[j])")
+				println("$j's reputation is $(pop.priv_reputations[j,i])")
 				println("$i's random number was $i_rand")
 				println("$i intended to do $i_intended_action and did $i_action")
 				println("$j's strategy is $(pop.strategies[j])")
-				println("$i's reputation is $(pop.pub_reputations[i])")
+				println("$i's reputation is $(pop.priv_reputations[i,j])")
 				println("$j's random number was $j_rand")
 				println("$j intended to do $j_intended_action and did $j_action")
 				println("$i earns a payoff of $(pop.game.A[i_action+1, j_action+1])")
@@ -283,33 +276,46 @@ module Institutions
 		pop.prev_actions = new_actions
 	end
 
-	function update_reputations_institution!(
+	function update_reputations_empathy!(
 		pop::Population
 		)
 		# update each individual's public reputation within each set
 		# by choosing a random action to observe
 		# then adjust each individual's private attitude about every other individual
 
+		### CONVENTION:
+		### reputations[i,j] is
+		### i's view of j's reputation!
+
 		# initialize public and private reputations at zero
-		new_priv_reputations = zeros(Int64, pop.Q, pop.N)
-		new_pub_reputations = zeros(Int64, pop.N)
-		# for each institution member
-		for k in 1:pop.Q
-			for i in 1:pop.N
-				# (note: status quo, this means the institution members decide their own reputations)
-				# check a random other individual j and see what i did to j
-				j = rand(filter(x -> x != i, 1:pop.N))
-				action = pop.prev_actions[i,j]
-				# apply the norm to determine i's reputation within set k
-				normed_reputation = reputation_norm(action, pop.pub_reputations[j], pop.norm)
+		new_priv_reputations = zeros(Int64, pop.N, pop.N)
+		# convention:
+		# i: observer
+		# j: donor
+		# k: recipient
+		# for each individual
+		for i in 1:pop.N
+			# evaluate the reputation of each donor
+			for j in filter(x -> x != i, 1:pop.N)
+				# look at what the donor did to a random recipient
+				k = rand(filter(x -> x ∉ [i,j], 1:pop.N))
+				action = pop.prev_actions[j,k]
+				empathy_rand = rand()
+				# if empathy_rand is less than E, i uses the donor's (j) view of k
+				# else, i uses their own (i) view of k
+				empathy_rand < pop.E ? k_reputation = pop.priv_reputations[j,k] : k_reputation = pop.priv_reputations[i,k]
+				# apply the norm to determine i's attitude toward j
+				# (i.e., j's reputation in i's eyes)
+				normed_reputation = reputation_norm(action, k_reputation, pop.norm)
 				rep_rand = rand()
-				rep_rand > pop.game.u_a ? new_priv_reputations[k,i] = normed_reputation : new_priv_reputations[k,i] = 1 - normed_reputation
+				rep_rand > pop.game.u_a ? new_priv_reputations[i,j] = normed_reputation : new_priv_reputations[i,j] = 1 - normed_reputation
 				if pop.verbose
-					println("$k analyzes $i's behavior toward $j")
-					println("$i did $action and $j's reputation is $(pop.pub_reputations[j])")
-					println("the norm \"$(pop.norm)\" predicts that $i's reputation be $normed_reputation")
+					println("$i analyzes $j's behavior toward $k")
+					println("$j did $action to $k")
+					empathy_rand < pop.E ? println("$i is empathetic and views $k's reputation as $(pop.priv_reputations[j,k])") : println("$i is not empathetic and view's $k's reputation as $(pop.priv_reputations[i,k])")
+					println("the norm \"$(pop.norm)\" predicts that $j's reputation be $normed_reputation")
 					println("the random number is $rep_rand")
-					println("$k judges $i's reputation to be $(new_priv_reputations[k,i])")
+					println("$i judges $j's reputation to be $(new_priv_reputations[i,j])")
 				end
 			end
 		end
@@ -317,14 +323,9 @@ module Institutions
 		# if an individual's total reputation, summed over institution members,
 		# is greater than q*Q, their reputation is broadcast as good
 		# otherwise, it is broadcast as bad
-		for i in 1:pop.N
-			new_pub_reputations[i] = (sum(pop.priv_reputations[:,i]) > pop.q*pop.Q)
-		end
 		if pop.verbose
-			println("private reputations are $new_priv_reputations and cutoff is $(pop.q*pop.Q)")
-			println("reputations are broadcast to be $new_pub_reputations")
+			println("private reputations are $new_priv_reputations")
 		end
-		pop.pub_reputations = new_pub_reputations
 	end
 
 	function reputation_norm(

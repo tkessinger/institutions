@@ -1,11 +1,10 @@
 using Revise
-using Institutions
+using Empathy
 using Statistics
 using PyPlot
 
 N = 4
-Q = 1
-q = 0.1
+E = 1.0
 
 b = 5.0
 c = 1.0
@@ -17,11 +16,11 @@ u_a = 0.0
 
 rep_norm = "scoring"
 
-num_gens = 1
+num_gens = 2
 
 game = Game(b, c, w, u_s, u_p, u_a)
 
-pop = Population(N, Q, q, game, rep_norm, [1,2,3,4], true)
+pop = Population(N, E, game, rep_norm, [1,2,3,4], true)
 for i in 1:num_gens
     evolve!(pop)
 end

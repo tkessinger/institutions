@@ -10,7 +10,7 @@ q = 0.3
 b = 5.0
 c = 1.0
 
-u_s = 0.025
+u_s = 0.05
 u_p = 0.02
 u_a = 0.02
 
@@ -21,9 +21,9 @@ verbose = false
 #rep_norm = "stern judging"
 #w = 0.1
 
-num_gens = 100000
+num_gens = 10000
 
-for w in [0.1]
+for w in [1.0]
     for rep_norm in ["scoring", "shunning", "stern judging", "simple standing"]
         game = Game(b, c, w, u_s, u_p, u_a, "pc")
 

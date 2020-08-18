@@ -167,13 +167,22 @@ function main(args)
 
 			total_interactions = N*(N-1)
 
+			coop_freq = Float64[]
+			reputations = Float64[]
+			strat_freqs = Array{Float64, 1}[]
+
 			for g in 1:num_gens
 				evolve!(pop)
+				if g > num_gens/2
+					push!(coop_freq, sum(pop.prev_actions)/total_interactions)
+					push!(reputations, get_reputations(pop))
+					push!(strat_freqs, get_freqs(pop))
+				end
 			end
 
-			coop_freq = sum(pop.prev_actions)/total_interactions
-			reputations = get_reputations(pop)
-		    strat_freqs = get_freqs(pop)
+			coop_freq = mean(coop_freq)
+			reputations = mean(reputations)
+		    strat_freqs = [mean(hcat(strat_freqs...)[x,:]) for x in 1:4]
 
 			pard["coop_freqs"] = coop_freq
 			pard["reputations"] = reputations
@@ -235,4 +244,4 @@ end
 
 #main(ARGS)
 
-main(["--input", "submit/test_institutions_mu_fixed.json"])
+main(["--input", "submit/test_institutions_high_mu_cumulative.json"])
