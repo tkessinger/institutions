@@ -283,7 +283,7 @@ module Institutions
 		pop.prev_actions = new_actions
 	end
 
-	function update_reputations_institution!(
+	function update_reputations_institutions!(
 		pop::Population
 		)
 		# update each individual's public reputation within each set
