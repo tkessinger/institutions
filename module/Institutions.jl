@@ -202,7 +202,7 @@ module Institutions
 			update_actions_and_fitnesses!(pop)
 			# then make sure everyone's reputations are updated
 			if pop.verbose println("updating reputations") end
-			update_reputations!(pop)
+			update_reputations_institutions!(pop)
 			# then, finally, select a pair of individuals whose fitnesses we will compare
 			if pop.verbose println("updating strategy") end
 			if pop.game.update_rule ∈ ["pc", "pairwise_comparison", "im", "imitation"]
