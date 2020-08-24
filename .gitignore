@@ -31,3 +31,7 @@ output/*
 
 # nohup output file
 nohup.out
+
+# dummy .py files
+*.py
+

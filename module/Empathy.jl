@@ -22,8 +22,6 @@
 # 8. Choose a random individual to update their strategy via a sigmoid function.
 # 9. Goto 4 and repeat.
 
-# TODO: add empathy parameter, write new reputations function
-
 module Empathy
 
 	using Random, StatsBase, Combinatorics
@@ -122,48 +120,49 @@ module Empathy
 	function get_reputations(
 		pop::Population
 		)
-		return 1.0*sum(pop.pub_reputations .== 1)/pop.N
+		return 1.0*sum(pop.priv_reputations .== 1)/(pop.N*(pop.N-1))
 	end
 
-	function get_strat_reputations(
+	# function get_strat_reputations(
+	# 	pop::Population
+	# 	)
+	# 	strat_reps = [1.0*sum((pop.strategies .== x) .* (pop.pub_reputations .== 1))/max(1,sum(pop.strategies .== x)) for x in 1:4]
+	# 	return strat_reps
+	# end
+
+	function mutate!(
 		pop::Population
 		)
-		strat_reps = [1.0*sum((pop.strategies .== x) .* (pop.pub_reputations .== 1))/max(1,sum(pop.strategies .== x)) for x in 1:4]
-		return strat_reps
-	end
-
-
-	function update_strategies_db!(
-		pop::Population
-		)
-		# randomly choose someone to die
-		invadee = sample(1:pop.sets.N)
-		# compute the fitnesses of every other individual in the population
-		invasion_fitnesses = 1.0 .- pop.game.w .+ pop.game.w*pop.fitnesses[filter(x->x!=invadee, 1:pop.sets.N)]
-		# choose a random other individual in the population, weighted by fitness0
-		invader = sample(filter(x->x!=invadee, collect(1:pop.sets.N)), Weights(invasion_fitnesses))
-		# the chosen individual's strategy replaces the deceased
-		if pop.verbose println("randomly chosen invader $invader and invadee $invadee") end
-		if pop.verbose println("fitnesses are $(pop.fitnesses[invader]) and $(pop.fitnesses[invadee])") end
-		if pop.verbose println("all fitnesses are $(pop.fitnesses)") end
+		#permissible_strategies = [[3,4],[3,4];[1,2],[1,2]]
+		# nmuts = rand(Binomial(pop.N, pop.game.u_s))
+		# # the rate needs to be normalized by N
+		# # because otherwise there will be N mutation events
+		# # for every selection event
+		# for i in 1:nmuts
+		# 	n = rand(1:pop.N)
 		if rand() < pop.game.u_s
-			# this is where we allow the invadee to mutate
-			#pop.strategies[invadee] = rand(filter(x->x!=pop.strategies[invader], pop.permitted_strategies))
-			pop.strategies[invadee] = rand(pop.permitted_strategies)
-			if pop.verbose println("mutating $invadee to strategy $(pop.strategies[invadee])") end
-		else
-			pop.strategies[invadee] = pop.strategies[invader]
-			if pop.verbose println("adopting strategy $(pop.strategies[invadee])") end
+			n = rand(1:pop.N)
+			# this line allows the following mutations:
+			# AllC or AllD to Disc or RDisc
+			# Disc or RDisc to AllC or AllD
+			old_strat = pop.strategies[n]
+			new_strat = ((4 - pop.strategies[n])÷2)*2+rand([1,2])
+			if new_strat ∈ pop.permitted_strategies
+				pop.strategies[n] = new_strat
+				if pop.verbose println("mutated $n from $old_strat to $new_strat") end
+			end
 		end
 	end
 
 	function update_strategies_pc!(
-		pop::Population
+		pop::Population,
+		mutate::Bool=false
 		)
 		# chooses a random pair of individuals to compare via a sigmoid function
 		# the fitter individual has a chance of invading the less fit one
 		# (i.e., forcing them to change strategy)
-		invader, invadee = sample(1:pop.N, 2)
+		# invader, invadee = sample(1:pop.N, 2)
+		invader, invadee = rand(1:pop.N, 2) # this allows the same individual to be picked for both
 		# sigmoid update function
 		# sanity check: this should be higher if invader fitness > invadee fitness
 		update_function = 1.0/(1.0+exp(-pop.game.w*(pop.fitnesses[invader]-pop.fitnesses[invadee])))
@@ -175,10 +174,12 @@ module Empathy
 			pop.strategies[invadee] = pop.strategies[invader]
 			if pop.verbose println("$invadee adopts strategy $(pop.strategies[invadee])") end
 		end
-		if rand() < pop.game.u_s
-			# this is where we allow the invadee to mutate
-			pop.strategies[invadee] = rand(pop.permitted_strategies)
-			if pop.verbose println("mutating $invadee to strategy $(pop.strategies[invadee])") end
+		if mutate
+			if rand() < pop.game.u_s
+				# this is where we allow the invadee to mutate
+				pop.strategies[invadee] = rand(pop.permitted_strategies)
+				if pop.verbose println("mutating $invadee to strategy $(pop.strategies[invadee])") end
+			end
 		end
 	end
 
@@ -192,6 +193,7 @@ module Empathy
 			if pop.verbose println("initiating generation $(pop.generation)") end
 			# we first need to choose actions and update fitnesses
 			if pop.verbose println("updating actions and fitnesses") end
+			mutate!(pop)
 			update_actions_and_fitnesses!(pop)
 			# then make sure everyone's reputations are updated
 			if pop.verbose println("updating reputations") end
@@ -199,9 +201,9 @@ module Empathy
 			# then, finally, select a pair of individuals whose fitnesses we will compare
 			if pop.verbose println("updating strategy") end
 			if pop.game.update_rule ∈ ["pc", "pairwise_comparison", "im", "imitation"]
-				update_strategies_pc!(pop)
-			elseif pop.game.update_rule ∈ ["db", "death_birth"]
-				update_strategies_db!(pop)
+				update_strategies_pc!(pop, false)
+			# elseif pop.game.update_rule ∈ ["db", "death_birth"]
+			# 	update_strategies_db!(pop)
 			end
 			pop.generation += 1
 		end
@@ -237,7 +239,9 @@ module Empathy
 		new_fitnesses = zeros(Float64, pop.N)
 		new_actions = zeros(Int64, pop.N, pop.N)
 		# for each pair of individuals
-		for (i, j) in filter(x -> x[1] < x[2], collect(Base.product(1:pop.N,1:pop.N)))
+		#for (i, j) in filter(x -> x[1] < x[2], collect(Base.product(1:pop.N,1:pop.N)))
+		# NOTE: this variant allows individuals to interact with themselves
+		for (i, j) in filter(x -> x[1] <= x[2], collect(Base.product(1:pop.N,1:pop.N)))
 			if pop.verbose println("updating actions of $i and $j") end
 
 			# if the random number is larger than the error rate, do the intended action
@@ -252,11 +256,11 @@ module Empathy
 
 			if pop.verbose
 				println("$i's strategy is $(pop.strategies[i])")
-				println("$j's reputation is $(pop.priv_reputations[j,i])")
+				println("$j's reputation is $(pop.priv_reputations[i,j])")
 				println("$i's random number was $i_rand")
 				println("$i intended to do $i_intended_action and did $i_action")
 				println("$j's strategy is $(pop.strategies[j])")
-				println("$i's reputation is $(pop.priv_reputations[i,j])")
+				println("$i's reputation is $(pop.priv_reputations[j,i])")
 				println("$j's random number was $j_rand")
 				println("$j intended to do $j_intended_action and did $j_action")
 				println("$i earns a payoff of $(pop.game.A[i_action+1, j_action+1])")
@@ -294,11 +298,14 @@ module Empathy
 		# j: donor
 		# k: recipient
 		# for each individual
+		# NOTE: current changes allow for self-observation.
 		for i in 1:pop.N
 			# evaluate the reputation of each donor
-			for j in filter(x -> x != i, 1:pop.N)
+			# for j in filter(x -> x != i, 1:pop.N)
+			for j in 1:pop.N
 				# look at what the donor did to a random recipient
-				k = rand(filter(x -> x ∉ [i,j], 1:pop.N))
+				# k = rand(filter(x -> x ∉ [i,j], 1:pop.N))
+				k = rand(1:pop.N)
 				action = pop.prev_actions[j,k]
 				empathy_rand = rand()
 				# if empathy_rand is less than E, i uses the donor's (j) view of k

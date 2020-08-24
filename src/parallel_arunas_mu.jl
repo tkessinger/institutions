@@ -165,7 +165,13 @@ function main(args)
 			game = Game(b, c, w, u_s, u_p, u_a, "pc")
 			pop = Population(N, Q, q, game, reputation_norm, permitted_strategies)
 
-			total_interactions = N*(N-1)
+			# initialize all as DISC
+			# pop.strategies = 3*ones(Int64, pop.N)
+
+			# total_interactions = N*(N-1)
+			# NOTE: this is only valid for self interactions
+			total_interactions = N^2
+
 
 			coop_freq = Float64[]
 			reputations = Float64[]
@@ -244,4 +250,4 @@ end
 
 #main(ARGS)
 
-main(["--input", "submit/test_institutions_weak_w_cumulative.json"])
+main(["--input", "submit/test_institutions_arunas.json"])

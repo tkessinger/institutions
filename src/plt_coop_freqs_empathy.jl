@@ -10,7 +10,7 @@
 using CSV, PyPlot, Statistics
 
 # load simulation output as a dataframe
-runs = CSV.read("output/test_institutions_weak_w_cumulative.csv")
+runs = CSV.read("output/test_institutions_mu_fixed_cumulative.csv")
 
 # dicts to store frequencies
 coop_freqs = Dict{Tuple{String, Int64, Float64},Array{Float64, 1}}()

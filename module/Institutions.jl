@@ -25,14 +25,15 @@
 
 module Institutions
 
-	using Random, StatsBase, Combinatorics
+	using Random, StatsBase, Combinatorics, Distributions
 
 	export Game, Population
 	export evolve!
 	export update_strategies_db!, update_strategies_pc!
 	export update_reputations!, update_actions_and_fitnesses!
 	export get_freqs, get_reputations, get_strat_reputations
-	export reputation_norm
+
+	export reputation_norm, determine_action, mutate!
 
 	struct Game
 		# structure for storing game parameters and such
@@ -139,38 +140,39 @@ module Institutions
 		return strat_reps
 	end
 
-
-	function update_strategies_db!(
+	function mutate!(
 		pop::Population
 		)
-		# randomly choose someone to die
-		invadee = sample(1:pop.sets.N)
-		# compute the fitnesses of every other individual in the population
-		invasion_fitnesses = 1.0 .- pop.game.w .+ pop.game.w*pop.fitnesses[filter(x->x!=invadee, 1:pop.sets.N)]
-		# choose a random other individual in the population, weighted by fitness0
-		invader = sample(filter(x->x!=invadee, collect(1:pop.sets.N)), Weights(invasion_fitnesses))
-		# the chosen individual's strategy replaces the deceased
-		if pop.verbose println("randomly chosen invader $invader and invadee $invadee") end
-		if pop.verbose println("fitnesses are $(pop.fitnesses[invader]) and $(pop.fitnesses[invadee])") end
-		if pop.verbose println("all fitnesses are $(pop.fitnesses)") end
+		#permissible_strategies = [[3,4],[3,4];[1,2],[1,2]]
+		# nmuts = rand(Binomial(pop.N, pop.game.u_s))
+		# # the rate needs to be normalized by N
+		# # because otherwise there will be N mutation events
+		# # for every selection event
+		# for i in 1:nmuts
+		# 	n = rand(1:pop.N)
 		if rand() < pop.game.u_s
-			# this is where we allow the invadee to mutate
-			#pop.strategies[invadee] = rand(filter(x->x!=pop.strategies[invader], pop.permitted_strategies))
-			pop.strategies[invadee] = rand(pop.permitted_strategies)
-			if pop.verbose println("mutating $invadee to strategy $(pop.strategies[invadee])") end
-		else
-			pop.strategies[invadee] = pop.strategies[invader]
-			if pop.verbose println("adopting strategy $(pop.strategies[invadee])") end
+			n = rand(1:pop.N)
+			# this line allows the following mutations:
+			# AllC or AllD to Disc or RDisc
+			# Disc or RDisc to AllC or AllD
+			old_strat = pop.strategies[n]
+			new_strat = ((4 - pop.strategies[n])÷2)*2+rand([1,2])
+			if new_strat ∈ pop.permitted_strategies
+				pop.strategies[n] = new_strat
+				if pop.verbose println("mutated $n from $old_strat to $new_strat") end
+			end
 		end
 	end
 
 	function update_strategies_pc!(
-		pop::Population
+		pop::Population,
+		mutate::Bool=false
 		)
 		# chooses a random pair of individuals to compare via a sigmoid function
 		# the fitter individual has a chance of invading the less fit one
 		# (i.e., forcing them to change strategy)
-		invader, invadee = sample(1:pop.N, 2)
+		# invader, invadee = sample(1:pop.N, 2)
+		invader, invadee = rand(1:pop.N, 2) # this allows the same individual to be picked for both
 		# sigmoid update function
 		# sanity check: this should be higher if invader fitness > invadee fitness
 		update_function = 1.0/(1.0+exp(-pop.game.w*(pop.fitnesses[invader]-pop.fitnesses[invadee])))
@@ -182,10 +184,12 @@ module Institutions
 			pop.strategies[invadee] = pop.strategies[invader]
 			if pop.verbose println("$invadee adopts strategy $(pop.strategies[invadee])") end
 		end
-		if rand() < pop.game.u_s
-			# this is where we allow the invadee to mutate
-			pop.strategies[invadee] = rand(pop.permitted_strategies)
-			if pop.verbose println("mutating $invadee to strategy $(pop.strategies[invadee])") end
+		if mutate
+			if rand() < pop.game.u_s
+				# this is where we allow the invadee to mutate
+				pop.strategies[invadee] = rand(pop.permitted_strategies)
+				if pop.verbose println("mutating $invadee to strategy $(pop.strategies[invadee])") end
+			end
 		end
 	end
 
@@ -199,6 +203,7 @@ module Institutions
 			if pop.verbose println("initiating generation $(pop.generation)") end
 			# we first need to choose actions and update fitnesses
 			if pop.verbose println("updating actions and fitnesses") end
+			mutate!(pop)
 			update_actions_and_fitnesses!(pop)
 			# then make sure everyone's reputations are updated
 			if pop.verbose println("updating reputations") end
@@ -206,9 +211,10 @@ module Institutions
 			# then, finally, select a pair of individuals whose fitnesses we will compare
 			if pop.verbose println("updating strategy") end
 			if pop.game.update_rule ∈ ["pc", "pairwise_comparison", "im", "imitation"]
-				update_strategies_pc!(pop)
-			elseif pop.game.update_rule ∈ ["db", "death_birth"]
-				update_strategies_db!(pop)
+				mutate!(pop)
+				update_strategies_pc!(pop, false)
+			# elseif pop.game.update_rule ∈ ["db", "death_birth"]
+			# 	update_strategies_db!(pop)
 			end
 			pop.generation += 1
 		end
@@ -244,7 +250,9 @@ module Institutions
 		new_fitnesses = zeros(Float64, pop.N)
 		new_actions = zeros(Int64, pop.N, pop.N)
 		# for each pair of individuals
-		for (i, j) in filter(x -> x[1] < x[2], collect(Base.product(1:pop.N,1:pop.N)))
+		#for (i, j) in filter(x -> x[1] < x[2], collect(Base.product(1:pop.N,1:pop.N)))
+		# NOTE: this variant allows individuals to interact with themselves
+		for (i, j) in filter(x -> x[1] <= x[2], collect(Base.product(1:pop.N,1:pop.N)))
 			if pop.verbose println("updating actions of $i and $j") end
 
 			# if the random number is larger than the error rate, do the intended action
@@ -298,7 +306,10 @@ module Institutions
 			for i in 1:pop.N
 				# (note: status quo, this means the institution members decide their own reputations)
 				# check a random other individual j and see what i did to j
-				j = rand(filter(x -> x != i, 1:pop.N))
+				# j = rand(filter(x -> x != i, 1:pop.N))
+				# NOTE: this variant allows for self-evaluation
+				j = rand(1:pop.N)
+
 				action = pop.prev_actions[i,j]
 				# apply the norm to determine i's reputation within set k
 				normed_reputation = reputation_norm(action, pop.pub_reputations[j], pop.norm)

@@ -5,16 +5,16 @@ using PyPlot
 
 N = 50
 Q = 50
-q = 0.3
+q = 0.5
 
 b = 5.0
 c = 1.0
 
-u_s = 0.05
+u_s = 0.025
 u_p = 0.02
 u_a = 0.02
 
-strategies = [1,2,3]
+strategies = [1,2,3,4]
 
 verbose = false
 
@@ -23,7 +23,7 @@ verbose = false
 
 num_gens = 10000
 
-for w in [1.0]
+for w in [1.0/N]
     for rep_norm in ["scoring", "shunning", "stern judging", "simple standing"]
         game = Game(b, c, w, u_s, u_p, u_a, "pc")
 
@@ -32,6 +32,7 @@ for w in [1.0]
         strat_freqs = Array{Float64, 1}[]
 
         pop = Population(N, Q, q, game, rep_norm, strategies, verbose)
+        pop.strategies = 3*ones(Int64, pop.N)
         for i in 1:num_gens
             evolve!(pop)
             push!(coop, sum(pop.prev_actions)/(N*(N-1)))

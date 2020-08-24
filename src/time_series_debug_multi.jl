@@ -9,7 +9,7 @@ N = 50
 b = 5.0
 c = 1.0
 
-u_s = 0.05
+u_s = 0.025
 u_p = 0.02
 u_a = 0.02
 
@@ -20,11 +20,11 @@ verbose = false
 #rep_norm = "stern judging"
 #w = 0.1
 
-num_gens = 10000
+num_gens = 5000
 
-for w in [1.0]
+for w in [1.0/N]
     for (Qi, Q) in enumerate([1, 2, 50])
-        for rep_norm in ["simple standing"]
+        for rep_norm in ["stern judging", "simple standing", "scoring", "shunning"]
         #for rep_norm in ["scoring"]
             fig, axs = plt.subplots(5,1, figsize=(10,20), sharex="col")
             for (qi, q) in enumerate([0.1, 0.3, 0.5, 0.7, 0.9])
@@ -62,7 +62,7 @@ for w in [1.0]
             end
             plt.tight_layout()
             display(fig)
-            #plt.savefig("long_mufix_multi_norm_$(replace(rep_norm, " " => "_"))_w_$(w)_Q_$(Q).pdf")
+            plt.savefig("long_mu_separated_multi_norm_$(replace(rep_norm, " " => "_"))_w_$(w)_Q_$(Q).pdf")
         end
     end
 end
