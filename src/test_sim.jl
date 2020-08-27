@@ -23,6 +23,8 @@ coop_errors = zeros(Float64, length(Q_vals), length(q_vals))
 
 burn_time = 10000
 
+
+
 trial_dist = 10000
 num_trials = 1
 

@@ -10,7 +10,7 @@
 using CSV, PyPlot, Statistics
 
 # load simulation output as a dataframe
-runs = CSV.read("output/test_institutions_arunas_mufix_long_3.csv")
+runs = CSV.read("output/figure_institutions_redo.csv")
 
 # dicts to store frequencies
 coop_freqs = Dict{Tuple{String, Int64, Float64},Array{Float64, 1}}()
@@ -21,7 +21,7 @@ E_coop_freqs = Dict{Tuple{String, Float64},Array{Float64, 1}}()
 E_strat_freqs = Dict{Tuple{String, Float64},Array{Array{Float64, 1}}}()
 
 
-empathy_runs = CSV.read("output/test_empathy_arunas_mufix_long_3.csv")
+empathy_runs = CSV.read("output/figure_empathy_redo.csv")
 
 # get unique values from the runs dataframe
 N = sort(unique(runs[:N]))[1]
@@ -175,11 +175,11 @@ for (Qi, Q) in enumerate(Q_vals)
 		end
 		for i in 1:4
 			ax.errorbar(q_vals, strat_means[i,:],
-				strat_stds[i,:]/sqrt(length(strat_freqs[norm, Q, q])),
+				strat_stds[i,:]/sqrt(num_trials),
 				label="$i")
 		end
 		ax.errorbar(q_vals, coop_means,
-			coop_stds/sqrt(length(coop_freqs[norm, Q, q])),
+			coop_stds/sqrt(num_trials),
 			label="coop",
 			color="teal",
 			ls = "--")

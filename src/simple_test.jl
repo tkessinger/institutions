@@ -4,7 +4,7 @@ using Statistics
 using PyPlot
 
 N = 4
-Q = 1
+Q = 2
 q = 0.1
 
 b = 5.0
@@ -15,7 +15,7 @@ u_s = 0.2
 u_p = 0.0
 u_a = 0.0
 
-rep_norm = "scoring"
+rep_norm = "stern judging"
 
 num_gens = 1
 

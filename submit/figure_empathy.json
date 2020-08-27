@@ -3,13 +3,9 @@
   {
     "value": 50
   },
-  "Q":
+  "E":
   {
-    "value": [1, 2, 50]
-  },
-  "q":
-  {
-    "value": [0.1, 0.3, 0.5, 0.7, 0.9]
+    "value": [0.0, 1.0]
   },
   "permitted_strategies":
   {
@@ -25,7 +21,7 @@
   },
   "w":
   {
-    "value": 0.02
+    "value": 1.0
   },
   "u_s":
   {
@@ -49,10 +45,10 @@
   },
   "num_trials":
   {
-    "value": 100
+    "value": 1000
   },
   "output":
   {
-    "value": "output/test_institutions_arunas_mufix_long_4.csv"
+    "value": "output/figure_empathy_redo.csv"
   }
 }

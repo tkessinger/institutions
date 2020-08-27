@@ -82,7 +82,7 @@ function main(args)
     @add_arg_table s begin
         "--ncpus"
             arg_type = Int64
-            default = max(round(Int, Sys.CPU_THREADS), 1)
+            default = max(round(Int, Sys.CPU_THREADS / 2), 1)
         "--input"
             default = nothing
         #"--output"
@@ -92,8 +92,7 @@ function main(args)
 
     defpars = Dict{String,Any}([
         "N"     => Dict("value" => 50, "type" => Int64),
-        "Q"     => Dict("value" => 1, "type" => Int64),
-		"q"     => Dict("value" => 0.5,     "type" => Float64),
+        "E"     => Dict("value" => 1.0, "type" => Float64),
 		"b"     => Dict("value" => 1.0,     "type" => Float64),
 		"c"     => Dict("value" => 0.1,     "type" => Float64),
 		"w"     => Dict("value" => 1.0,     "type" => Float64),
@@ -136,8 +135,7 @@ function main(args)
             pard = merge(pard, seed)
 
             N = pard["N"]
-			Q = pard["Q"]
-			q = pard["q"]
+			E = pard["E"]
 
 			reputation_norm = pard["reputation_norm"]
 
@@ -163,15 +161,13 @@ function main(args)
             flush(stdout)
 
 			game = Game(b, c, w, u_s, u_p, u_a, "pc")
-			pop = Population(N, Q, q, game, reputation_norm, permitted_strategies)
+			pop = empathy_population(N, E, game, reputation_norm, permitted_strategies)
 
-			# initialize all as DISC
 			# pop.strategies = 3*ones(Int64, pop.N)
 
 			# total_interactions = N*(N-1)
 			# NOTE: this is only valid for self interactions
 			total_interactions = N^2
-
 
 			coop_freq = Float64[]
 			reputations = Float64[]
@@ -250,4 +246,4 @@ end
 
 #main(ARGS)
 
-main(["--input", "submit/figure_institutions.json"])
+main(["--input", "submit/figure_empathy.json"])

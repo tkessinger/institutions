@@ -1,6 +1,6 @@
 #!/usr/bin/env julia
 
-## Institutions.jl
+## Empathy.jl
 ##
 ## Author: Taylor Kessinger <tkess@sas.upenn.edu>
 ## Module for simulating cooperation and defection
@@ -22,7 +22,7 @@
 # 8. Choose a random individual to update their strategy via a sigmoid function.
 # 9. Goto 4 and repeat.
 
-module Empathy
+module EmpathyOld
 
 	using Random, StatsBase, Combinatorics
 
@@ -100,6 +100,7 @@ module Empathy
 			strategies = rand(initial_strategies, N)
 			#strategies = 2*ones(Int64, N)
 			# randomize individuals' private reputations
+			#priv_reputations = ones(Int64, N, N)
 			priv_reputations = rand([0, 1], N, N)
 			# previous actions and fitnesses start at zero (these will get updated)
 			prev_actions = zeros(Int64, N, N)

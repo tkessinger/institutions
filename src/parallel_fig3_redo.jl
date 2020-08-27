@@ -163,7 +163,7 @@ function main(args)
             flush(stdout)
 
 			game = Game(b, c, w, u_s, u_p, u_a, "pc")
-			pop = Population(N, Q, q, game, reputation_norm, permitted_strategies)
+			pop = institution_population(N, Q, q, game, reputation_norm, permitted_strategies)
 
 			# initialize all as DISC
 			# pop.strategies = 3*ones(Int64, pop.N)

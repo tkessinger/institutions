@@ -24,34 +24,36 @@ verbose = false
 num_gens = 10000
 
 for w in [1.0/N]
-    for rep_norm in ["scoring", "shunning", "stern judging", "simple standing"]
-        game = Game(b, c, w, u_s, u_p, u_a, "pc")
+    for q in [0.1, 0.3, 0.5, 0.7, 0.9]
+        for rep_norm in ["stern judging"]
+            game = Game(b, c, w, u_s, u_p, u_a, "pc")
 
-        coop = Float64[]
-        reputations = Float64[]
-        strat_freqs = Array{Float64, 1}[]
+            coop = Float64[]
+            reputations = Float64[]
+            strat_freqs = Array{Float64, 1}[]
 
-        pop = Population(N, Q, q, game, rep_norm, strategies, verbose)
-        pop.strategies = 3*ones(Int64, pop.N)
-        for i in 1:num_gens
-            evolve!(pop)
-            push!(coop, sum(pop.prev_actions)/(N*(N-1)))
-            push!(reputations, get_reputations(pop))
-            push!(strat_freqs, get_freqs(pop))
+            pop = Population(N, Q, q, game, rep_norm, strategies, verbose)
+            #pop.strategies = 3*ones(Int64, pop.N)
+            for i in 1:num_gens
+                evolve!(pop)
+                push!(coop, sum(pop.prev_actions)/(N*(N-1)))
+                push!(reputations, get_reputations(pop))
+                push!(strat_freqs, get_freqs(pop))
+            end
+
+            strat_freqs = permutedims(hcat(strat_freqs...))
+
+            fig = plt.figure(figsize=(20,5))
+            plt.plot(coop, ls = "--", c = "black", label="coop")
+            plt.plot(reputations, ls = "-", c = "yellow", label="rep")
+            [plt.plot(strat_freqs[:,x], label="$x") for x in 1:4]
+            plt.ylim([0,1])
+            plt.xlim([0,num_gens])
+            plt.title("norm = $rep_norm, w = $w")
+            plt.legend(loc=2)
+            plt.tight_layout()
+            display(fig)
+            #plt.savefig("sample_norm_$(rep_norm)_w_$(w)_Q_$(Q)_q_$(q).pdf")
         end
-
-        strat_freqs = permutedims(hcat(strat_freqs...))
-
-        fig = plt.figure(figsize=(20,5))
-        plt.plot(coop, ls = "--", c = "black", label="coop")
-        plt.plot(reputations, ls = "-", c = "yellow", label="rep")
-        [plt.plot(strat_freqs[:,x], label="$x") for x in 1:4]
-        plt.ylim([0,1])
-        plt.xlim([0,num_gens])
-        plt.title("norm = $rep_norm, w = $w")
-        plt.legend(loc=2)
-        plt.tight_layout()
-        display(fig)
-        #plt.savefig("sample_norm_$(rep_norm)_w_$(w)_Q_$(Q)_q_$(q).pdf")
     end
 end

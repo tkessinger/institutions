@@ -246,4 +246,4 @@ end
 
 #main(ARGS)
 
-main(["--input", "submit/test_empathy_arunas.json"])
+main(["--input", "submit/figure_empathy.json"])

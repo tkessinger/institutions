@@ -21,12 +21,11 @@
 # 8. Choose a random individual to update their strategy via a sigmoid function.
 # 9. Goto 4 and repeat.
 
-module Institutions
+module InstitutionsOld
 
 	using Random, StatsBase, Combinatorics, Distributions
 
 	export Game, Population
-	export empathy_population, institution_population, fixation_population
 	export evolve!
 	export update_strategies_db!, update_strategies_pc!
 	export update_reputations!, update_actions_and_fitnesses!
@@ -82,96 +81,42 @@ module Institutions
 		game::Game
 		norm::String
 		strategies::Array{Int64, 1} # array of reputation assessment strategies
-		empathies::Array{Float64, 1} # individual empathy values
-		is_follower::Array{Bool, 1} # does this person follow an institution or not?
-		priv_reputations::Array{Int64, 2} # private assessments
+		priv_reputations::Array{Int64, 2} # institution members' private assessments
 			# of the entire population
-		pub_reputations::Array{Int64, 1} # institution's public reputation
+		pub_reputations::Array{Int64, 1} # everyone's public reputation
 		prev_actions::Array{Int64, 2} # the last action each individual took toward each other
 		fitnesses::Array{Float64, 1} # array of fitnesses
 		permitted_strategies::Array{Int64, 1} # which strategies are allowed to appear
 		generation::Int64 # current generation
 		verbose::Bool # turn this on for error tracking
 
-	end
-
-	function empathy_population(
-		N::Int64,
-		E::Float64,
-		game::Game,
-		norm::String,
-		initial_strategies::Array{Int64, 1}=[1,2,3,4],
-		verbose::Bool=false
-		)
-		# begin by initializing the population with random strategies
-		strategies = rand(initial_strategies, N)
-		Q = 0
-		q = 0.0
-		empathies = E*ones(Float64, N)
-		is_follower = zeros(Bool, N)
-		priv_reputations = rand([0,1], N, N)
-		pub_reputations = zeros(Int64, N)
-		prev_actions = zeros(Int64, N, N)
-		fitnesses = zeros(Float64, N)
-		permitted_strategies = initial_strategies
-		generation = 0
-		return Population(N, Q, q, game, norm, strategies, empathies,
-			is_follower, priv_reputations, pub_reputations,
-			prev_actions, fitnesses, permitted_strategies,
-			generation, verbose)
-	end
-
-	function institution_population(
-		N::Int64,
-		Q::Int64,
-		q::Float64,
-		game::Game,
-		norm::String,
-		initial_strategies::Array{Int64, 1}=[1,2,3,4],
-		verbose::Bool=false
-		)
-		# begin by initializing the population with random strategies
-		strategies = rand(initial_strategies, N)
-		empathies = zeros(Float64, N)
-		is_follower = ones(Bool, N)
-		priv_reputations = rand([0,1], N, N)
-		pub_reputations = zeros(Int64, N)
-		[pub_reputations[x] = (sum(priv_reputations[1:Q,x]) > q*Q) for x in 1:N]
-		prev_actions = zeros(Int64, N, N)
-		fitnesses = zeros(Float64, N)
-		permitted_strategies = initial_strategies
-		generation = 0
-		return Population(N, Q, q, game, norm, strategies, empathies,
-			is_follower, priv_reputations, pub_reputations,
-			prev_actions, fitnesses, permitted_strategies,
-			generation, verbose)
-	end
-
-	function fixation_population(
-		N::Int64,
-		E::Float64,
-		Q::Int64,
-		q::Float64,
-		game::Game,
-		norm::String,
-		initial_strategies::Array{Int64, 1}=[3],
-		verbose::Bool=false
-		)
-		# begin by initializing the population with random strategies
-		strategies = rand(initial_strategies, N)
-		empathies = E*ones(Float64, N)
-		is_follower = zeros(Bool, N)
-		priv_reputations = rand([0,1], N, N)
-		pub_reputations = zeros(Int64, N)
-		[pub_reputations[x] = (sum(priv_reputations[1:Q,x]) > q*Q) for x in 1:N]
-		prev_actions = zeros(Int64, N, N)
-		fitnesses = zeros(Float64, N)
-		permitted_strategies = initial_strategies
-		generation = 0
-		return Population(N, Q, q, game, norm, strategies, empathies,
-			is_follower, priv_reputations, pub_reputations,
-			prev_actions, fitnesses, permitted_strategies,
-			generation, verbose)
+		# constructor if sets and game are already specified
+		function Population(
+			N::Int64,
+			Q::Int64,
+			q::Float64,
+			game::Game,
+			norm::String,
+			initial_strategies::Array{Int64, 1}=[1,2,3,4],
+			verbose::Bool=false
+			)
+			# begin by initializing the population with random strategies
+			strategies = rand(initial_strategies, N)
+			#strategies = 2*ones(Int64, N)
+			# randomize institution members' private reputations
+			priv_reputations = rand([0, 1], N, N)
+			#priv_reputations = ones(Int64, N, N)
+			pub_reputations = zeros(Int64, N)
+			# broadcast the institutional reputations to public
+			[pub_reputations[x] = (sum(priv_reputations[1:Q,x]) > q*Q) for x in 1:N]
+			# previous actions and fitnesses start at zero (these will get updated)
+			prev_actions = zeros(Int64, N, N)
+			fitnesses = zeros(Float64, N)
+			permitted_strategies = initial_strategies
+			generation = 0
+			return new(N, Q, q, game, norm, strategies, priv_reputations, pub_reputations,
+				prev_actions, fitnesses, permitted_strategies, generation, verbose)
+		end
 	end
 
 	function get_freqs(
@@ -196,6 +141,13 @@ module Institutions
 	function mutate!(
 		pop::Population
 		)
+		#permissible_strategies = [[3,4],[3,4];[1,2],[1,2]]
+		# nmuts = rand(Binomial(pop.N, pop.game.u_s))
+		# # the rate needs to be normalized by N
+		# # because otherwise there will be N mutation events
+		# # for every selection event
+		# for i in 1:nmuts
+		# 	n = rand(1:pop.N)
 		if rand() < pop.game.u_s
 			n = rand(1:pop.N)
 			# this line allows the following mutations:
@@ -211,7 +163,8 @@ module Institutions
 	end
 
 	function update_strategies_pc!(
-		pop::Population
+		pop::Population,
+		mutate::Bool=false
 		)
 		# chooses a random pair of individuals to compare via a sigmoid function
 		# the fitter individual has a chance of invading the less fit one
@@ -227,9 +180,14 @@ module Institutions
 		if pop.verbose println("update function is $update_function") end
 		if rand() < update_function
 			pop.strategies[invadee] = pop.strategies[invader]
-			pop.is_follower[invadee] = pop.is_follower[invader]
-			pop.empathies[invadee] = pop.empathies[invader]
 			if pop.verbose println("$invadee adopts strategy $(pop.strategies[invadee])") end
+		end
+		if mutate
+			if rand() < pop.game.u_s
+				# this is where we allow the invadee to mutate
+				pop.strategies[invadee] = rand(pop.permitted_strategies)
+				if pop.verbose println("mutating $invadee to strategy $(pop.strategies[invadee])") end
+			end
 		end
 	end
 
@@ -247,11 +205,11 @@ module Institutions
 			update_actions_and_fitnesses!(pop)
 			# then make sure everyone's reputations are updated
 			if pop.verbose println("updating reputations") end
-			update_reputations!(pop)
+			update_reputations_institutions!(pop)
 			# then, finally, select a pair of individuals whose fitnesses we will compare
 			if pop.verbose println("updating strategy") end
 			if pop.game.update_rule ∈ ["pc", "pairwise_comparison", "im", "imitation"]
-				update_strategies_pc!(pop)
+				update_strategies_pc!(pop, false)
 			# elseif pop.game.update_rule ∈ ["db", "death_birth"]
 			# 	update_strategies_db!(pop)
 			end
@@ -288,26 +246,41 @@ module Institutions
 		# initialize all fitnesses and actions at zero
 		new_fitnesses = zeros(Float64, pop.N)
 		new_actions = zeros(Int64, pop.N, pop.N)
+		# for each pair of individuals
+		#for (i, j) in filter(x -> x[1] < x[2], collect(Base.product(1:pop.N,1:pop.N)))
+		# NOTE: this variant allows individuals to interact with themselves
+		for (i, j) in filter(x -> x[1] <= x[2], collect(Base.product(1:pop.N,1:pop.N)))
+			if pop.verbose println("updating actions of $i and $j") end
 
-		# for each donor i
-		for i in 1:pop.N
-			# for each recipient j
-			for j in 1:pop.N
-				# i behaves toward j based on i's view of j
-				# (note: i may already have adopted the institutional view)
-				i_intended_action = determine_action(pop.strategies[i], pop.priv_reputations[i,j])
-				i_rand = rand()
-				i_rand > pop.game.u_p ? i_action = i_intended_action : i_action = 0
-				new_actions[i,j] = i_action
+			# if the random number is larger than the error rate, do the intended action
+			# else, defect
+			i_rand = rand()
+			i_intended_action = determine_action(pop.strategies[i], pop.pub_reputations[j])
+			i_rand > pop.game.u_p ? i_action = i_intended_action : i_action = 0
+			# repeat with j
+			j_rand = rand()
+			j_intended_action = determine_action(pop.strategies[j], pop.pub_reputations[i])
+			j_rand > pop.game.u_p ? j_action = j_intended_action : j_action = 0
+
+			if pop.verbose
+				println("$i's strategy is $(pop.strategies[i])")
+				println("$j's reputation is $(pop.pub_reputations[j])")
+				println("$i's random number was $i_rand")
+				println("$i intended to do $i_intended_action and did $i_action")
+				println("$j's strategy is $(pop.strategies[j])")
+				println("$i's reputation is $(pop.pub_reputations[i])")
+				println("$j's random number was $j_rand")
+				println("$j intended to do $j_intended_action and did $j_action")
+				println("$i earns a payoff of $(pop.game.A[i_action+1, j_action+1])")
+				println("$j earns a payoff of $(pop.game.A[j_action+1, i_action+1])")
 			end
+			# adjust i and j's fitnesses according to their strategies and the game matrix
+			new_fitnesses[i] += pop.game.A[i_action+1, j_action+1] # +1 because julia is 1-indexed
+			new_fitnesses[j] += pop.game.A[j_action+1, i_action+1]
+			# store their last actions toward each other in this set
+			new_actions[i,j] = i_action
+			new_actions[j,i] = j_action
 		end
-		for i in 1:pop.N
-			# i receives benefit b for each time it is cooperated with
-			new_fitnesses[i] += pop.game.b*sum(new_actions[:,i])/pop.N
-			# i pays cost c for each time it cooperates
-			new_fitnesses[i] -= pop.game.c*sum(new_actions[i,:])/pop.N
-		end
-
 		if pop.verbose println("new fitnesses look like $new_fitnesses") end
 		if pop.verbose println("new actions look like $new_actions") end
 
@@ -315,10 +288,10 @@ module Institutions
 		pop.prev_actions = new_actions
 	end
 
-	function update_reputations!(
+	function update_reputations_institutions!(
 		pop::Population
 		)
-		# update each individual's public reputation
+		# update each individual's public reputation within each set
 		# by choosing a random action to observe
 		# then adjust each individual's private attitude about every other individual
 
@@ -330,42 +303,36 @@ module Institutions
 			# for each donor
 			for j in 1:pop.N
 				# check a random other individual k and see what j did to k
+				# k = rand(filter(x -> x != i, 1:pop.N))
+				# NOTE: this variant allows for self-evaluation, and indeed self-interaction
 				k = rand(1:pop.N)
+
 				action = pop.prev_actions[j,k]
-				if rand() < pop.empathies[i]
-					normed_reputation = reputation_norm(action, pop.priv_reputations[j,k], pop.norm)
-				else
-					normed_reputation = reputation_norm(action, pop.priv_reputations[i,k], pop.norm)
-				end
+				dummy_rand = rand()
+				normed_reputation = reputation_norm(action, pop.pub_reputations[k], pop.norm)
 				rep_rand = rand()
 				rep_rand > pop.game.u_a ? new_priv_reputations[i,j] = normed_reputation : new_priv_reputations[i,j] = 1 - normed_reputation
-				# if pop.verbose
-				# 	println("$i analyzes $j's behavior toward $k")
-				# 	println("$j did $action and $k's reputation is $(pop.pub_reputations[k])")
-				# 	println("the norm \"$(pop.norm)\" predicts that $j's reputation be $normed_reputation")
-				# 	println("the random number is $rep_rand")
-				# 	println("$i judges $j's reputation to be $(new_priv_reputations[i,j])")
-				# end
+				if pop.verbose
+					println("$i analyzes $j's behavior toward $k")
+					println("$j did $action and $k's reputation is $(pop.pub_reputations[k])")
+					println("the norm \"$(pop.norm)\" predicts that $j's reputation be $normed_reputation")
+					println("the random number is $rep_rand")
+					println("$i judges $j's reputation to be $(new_priv_reputations[i,j])")
+				end
 			end
 		end
+		pop.priv_reputations = new_priv_reputations
 		# if an individual's total reputation, summed over institution members,
 		# is greater than q*Q, their reputation is broadcast as good
 		# otherwise, it is broadcast as bad
 		for i in 1:pop.N
-			new_pub_reputations[i] = (sum(new_priv_reputations[1:pop.Q,i]) > pop.q*pop.Q)
+			new_pub_reputations[i] = (sum(pop.priv_reputations[1:pop.Q,i]) > pop.q*pop.Q)
 		end
-		# followers adopt the institution's view
-		for i in 1:pop.N
-			if pop.is_follower[i]
-				new_priv_reputations[i,:] = new_pub_reputations
-			end
-		end
-		pop.priv_reputations = new_priv_reputations
-		pop.pub_reputations = new_pub_reputations
 		if pop.verbose
 			println("private reputations are $new_priv_reputations and cutoff is $(pop.q*pop.Q)")
 			println("reputations are broadcast to be $new_pub_reputations")
 		end
+		pop.pub_reputations = new_pub_reputations
 	end
 
 	function reputation_norm(

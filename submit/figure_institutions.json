@@ -25,7 +25,7 @@
   },
   "w":
   {
-    "value": 0.02
+    "value": 1.0
   },
   "u_s":
   {
@@ -49,10 +49,10 @@
   },
   "num_trials":
   {
-    "value": 100
+    "value": 1000
   },
   "output":
   {
-    "value": "output/test_institutions_arunas_mufix_long_4.csv"
+    "value": "output/figure_institutions_redo.csv"
   }
 }
