@@ -129,7 +129,7 @@ function main(args)
 
     @everywhere function run_worker(inputs, results)
         # save trial number and random seed
-        seed = Dict(zip(["seed1", "seed2", "seed3", "seed4"], Random.GLOBAL_RNG.seed))
+        seed = Dict(zip(["seed1", "seed2", "seed3", "seed4"], Random.MersenneTwister().seed))
 
         while true
             pard = take!(inputs)
@@ -181,7 +181,7 @@ function main(args)
 				evolve!(pop)
 				if g > num_gens/2
 					push!(coop_freq, sum(pop.prev_actions)/total_interactions)
-					push!(reputations, get_reputations(pop))
+					push!(reputations, get_pub_reputations(pop))
 					push!(strat_freqs, get_freqs(pop))
 				end
 			end
@@ -250,4 +250,4 @@ end
 
 #main(ARGS)
 
-main(["--input", "submit/figure_institutions.json"])
+main(["--input", "submit/paper_institutions_noRDisc.json"])

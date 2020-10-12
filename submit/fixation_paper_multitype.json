@@ -5,11 +5,23 @@
   },
   "E":
   {
-    "value": [0.0, 1.0]
+    "value": [0.0, 0.9]
+  },
+  "Q":
+  {
+    "value": [1, 2, 50]
+  },
+  "q":
+  {
+    "value": [0.1, 0.3, 0.5, 0.7, 0.9]
   },
   "permitted_strategies":
   {
-    "value": "all"
+    "value": "123"
+  },
+  "run_type":
+  {
+    "value": ["equal", "AllC", "AllD", "Disc"]
   },
   "b":
   {
@@ -25,7 +37,7 @@
   },
   "u_s":
   {
-    "value": 0.025
+    "value": 0.02
   },
   "u_p":
   {
@@ -39,16 +51,20 @@
   {
     "value": ["stern judging", "scoring", "shunning", "simple standing"]
   },
-  "num_gens":
+  "independent_board":
   {
-    "value": 10000
+    "value": [true, false]
   },
   "num_trials":
   {
-    "value": 4000
+    "value": 10
+  },
+  "runs_per_trial":
+  {
+    "value": 100
   },
   "output":
   {
-    "value": "output/figure_empathy_long.csv"
+    "value": "output/fixation_paper_multitype.csv"
   }
 }

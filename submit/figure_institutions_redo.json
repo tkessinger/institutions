@@ -3,9 +3,13 @@
   {
     "value": 50
   },
-  "E":
+  "Q":
   {
-    "value": [0.0, 1.0]
+    "value": [1, 2, 50]
+  },
+  "q":
+  {
+    "value": [0.1, 0.3, 0.5, 0.7, 0.9]
   },
   "permitted_strategies":
   {
@@ -45,10 +49,10 @@
   },
   "num_trials":
   {
-    "value": 4000
+    "value": 1000
   },
   "output":
   {
-    "value": "output/figure_empathy_long.csv"
+    "value": "output/figure_institutions_redo.csv"
   }
 }

@@ -10,7 +10,9 @@
 using CSV, PyPlot, Statistics
 
 # load simulation output as a dataframe
-runs = CSV.read("output/figure_institutions_redo.csv")
+runs = CSV.read("output/paper_institutions_noRDisc.csv")
+
+empathy_runs = CSV.read("output/paper_empathy_noRDisc.csv")
 
 # dicts to store frequencies
 coop_freqs = Dict{Tuple{String, Int64, Float64},Array{Float64, 1}}()
@@ -19,9 +21,6 @@ strat_freqs = Dict{Tuple{String, Int64, Float64},Array{Array{Float64, 1}}}()
 
 E_coop_freqs = Dict{Tuple{String, Float64},Array{Float64, 1}}()
 E_strat_freqs = Dict{Tuple{String, Float64},Array{Array{Float64, 1}}}()
-
-
-empathy_runs = CSV.read("output/figure_empathy_redo.csv")
 
 # get unique values from the runs dataframe
 N = sort(unique(runs[:N]))[1]
@@ -81,7 +80,7 @@ E_param_combs = reshape(E_params, length(E_params))
 
 plotcolors = ["tab:blue", "tab:orange", "tab:green", "tab:red", "tab:purple", "tab:brown"]
 
-cs = ["blue", "green", "red"]
+cs = ["blue", "green", "red", "orange"]
 
 e_cs = ["yellow", "black"]
 
@@ -91,7 +90,7 @@ fig, axs = plt.subplots(1,length(sub_norms), figsize=(5*length(sub_norms),5), sh
 for (ni, norm) in enumerate(sub_norms)
 	#fig = plt.figure()
 	ax = axs[ni]
-	title_string = "norm = $norm"
+	title_string = "$norm"
 
 	E_coop_means = zeros(Float64, length(E_vals))
 
@@ -114,28 +113,22 @@ for (ni, norm) in enumerate(sub_norms)
 			strat_means[:, qi] = [mean(hcat(strat_freqs[norm, Q, q]...)[x,:]) for x in 1:4]
 			strat_stds[:, qi] = [std(hcat(strat_freqs[norm, Q, q]...)[x,:]) for x in 1:4]
 		end
-		ax.errorbar(q_vals, coop_means[Qi,:],
-			#[coop_stds[Qi,:]/sqrt(length(coop_freqs[norm, Q, q])) for q in q_vals],
-			coop_stds[Qi,:]/sqrt(num_samples),
-			label="Q = $Q",
-			color=cs[Qi])
-		# ax.errorbar(q_vals, strat_means[3,:],
-		# 	strat_stds[3,:]/sqrt(length(strat_freqs[norm, Q, q])),
-		# 	label="Disc freq",
-		# 	color="teal",
-		# 	ls = "--")
-		# ax.errorbar(q_vals, strat_means[4,:],
-		# 	strat_stds[4,:]/sqrt(length(strat_freqs[norm, Q, q])),
-		# 	label="RDisc freq",
-		# 	color="purple",
-		# 	ls = "--")
-
-
-		#ax.errorbar(q_vals, rep_means[Qi,:],
-		#	rep_stds[Qi,:]/sqrt(coop_freqs[norm, Q, q]),
-			#label="Q = $Q",
-		#	ls = "--",
-		#	color=cs[Qi])
+		if Q == 2
+			mod_qvals = vcat(q_vals[1:2], [0.499999], q_vals[3:end])
+			mod_means = vcat(coop_means[Qi,1:2], [coop_means[Qi,2]], coop_means[Qi,3:end])
+			mod_stds = vcat(coop_stds[Qi,1:2], [coop_stds[Qi,2]], coop_stds[Qi,3:end])
+			ax.errorbar(mod_qvals, mod_means,
+				#[coop_stds[Qi,:]/sqrt(length(coop_freqs[norm, Q, q])) for q in q_vals],
+				2*mod_stds/sqrt(num_samples),
+				label="Q = $Q",
+				color=cs[Qi])
+		else
+			ax.errorbar(q_vals, coop_means[Qi,:],
+				#[coop_stds[Qi,:]/sqrt(length(coop_freqs[norm, Q, q])) for q in q_vals],
+				2*coop_stds[Qi,:]/sqrt(num_samples),
+				label="Q = $Q",
+				color=cs[Qi])
+		end
 	end
 	for (Ei, E) in enumerate(E_vals)
 		E_coop_means[Ei] = mean(E_coop_freqs[norm, E])
@@ -175,14 +168,20 @@ for (Qi, Q) in enumerate(Q_vals)
 		end
 		for i in 1:4
 			ax.errorbar(q_vals, strat_means[i,:],
-				strat_stds[i,:]/sqrt(num_trials),
-				label="$i")
+				strat_stds[i,:]/sqrt(num_samples),
+				label="$i", c = cs[i])
+			[ax.hlines(
+				mean(hcat(E_strat_freqs[norm, E_val]...)[i,:]),
+				minimum(q_vals), maximum(q_vals),
+				linestyle = "--",
+				color = cs[i])
+				for E_val in [E_vals[2]]]
 		end
-		ax.errorbar(q_vals, coop_means,
-			coop_stds/sqrt(num_trials),
-			label="coop",
-			color="teal",
-			ls = "--")
+		# ax.errorbar(q_vals, coop_means,
+		# 	coop_stds/sqrt(num_samples),
+		# 	label="coop",
+		# 	color="teal",
+		# 	ls = "--")
 		#color=cs[Qi])
 		if Qi == 1
 			ax.set_title("$norm")

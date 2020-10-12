@@ -82,7 +82,7 @@ function main(args)
     @add_arg_table s begin
         "--ncpus"
             arg_type = Int64
-            default = max(round(Int, Sys.CPU_THREADS), 1)
+            default = max(round(Int, Sys.CPU_THREADS / 2), 1)
         "--input"
             default = nothing
         #"--output"
@@ -93,16 +93,18 @@ function main(args)
     defpars = Dict{String,Any}([
         "N"     => Dict("value" => 50, "type" => Int64),
         "E"     => Dict("value" => 1.0, "type" => Float64),
+		"Q"		=> Dict("value" => 1, "type" => Int64),
+		"q"		=> Dict("value" => 1, "type" => Float64),
 		"b"     => Dict("value" => 1.0,     "type" => Float64),
 		"c"     => Dict("value" => 0.1,     "type" => Float64),
 		"w"     => Dict("value" => 1.0,     "type" => Float64),
-		"u_s"     => Dict("value" => 0.01,     "type" => Float64),
 		"u_p"     => Dict("value" => 0.01,     "type" => Float64),
 		"u_a"     => Dict("value" => 0.01,     "type" => Float64),
+		"independent_board"     => Dict("value" => true,     "type" => Bool),
 		"reputation_norm" => Dict("value" => "stern judging", "type" => String),
-        "permitted_strategies" => Dict("value" => "all", "type" => String),
-        "num_gens" => Dict("value" => 10000, "type" => Int64),
+        "permitted_strategies" => Dict("value" => "3", "type" => String),
         "num_trials" => Dict("value" => 50, "type" => Int64),
+		"runs_per_trial" => Dict("value" => 50, "type" => Int64),
         "output" => Dict("value" => "output/test.csv", "type" => String)
     ])
     pars = read_parameters(defpars, parsed_args["input"])
@@ -136,6 +138,8 @@ function main(args)
 
             N = pard["N"]
 			E = pard["E"]
+			Q = pard["Q"]
+			q = pard["q"]
 
 			reputation_norm = pard["reputation_norm"]
 
@@ -149,11 +153,13 @@ function main(args)
 			c = pard["c"]
 			w = pard["w"]
 
-			u_s = pard["u_s"]
+			u_s = 0.0
 			u_p = pard["u_p"]
 			u_a = pard["u_a"]
+			independent_board = pard["independent_board"]
 
-			num_gens = pard["num_gens"]
+			num_trials = pard["num_trials"]
+			runs_per_trial = pard["runs_per_trial"]
 
             output = pard["output"]
 
@@ -161,34 +167,42 @@ function main(args)
             flush(stdout)
 
 			game = Game(b, c, w, u_s, u_p, u_a, "pc")
-			pop = empathy_population(N, E, game, reputation_norm, permitted_strategies)
 
-			# pop.strategies = 3*ones(Int64, pop.N)
-
-			# total_interactions = N*(N-1)
-			# NOTE: this is only valid for self interactions
 			total_interactions = N^2
 
-			coop_freq = Float64[]
-			reputations = Float64[]
-			strat_freqs = Array{Float64, 1}[]
+			successes = 0
+			failures = 0
+			equilibrium_reputations = Float64[]
+			equilibrium_inst_reputations = Float64[]
 
-			for g in 1:num_gens
-				evolve!(pop)
-				if g > num_gens/2
-					push!(coop_freq, sum(pop.prev_actions)/total_interactions)
-					push!(reputations, get_priv_reputations(pop))
-					push!(strat_freqs, get_freqs(pop))
+			for g in 1:runs_per_trial
+				pop = fixation_population(N, E, Q, q, game, reputation_norm, permitted_strategies, independent_board)
+				for i in 1:250
+					evolve!(pop)
+				end
+				init_reputation = sum(pop.priv_reputations)/N^2
+				init_inst_reputation = sum(pop.pub_reputations)/N
+				push!(equilibrium_reputations, init_reputation)
+				push!(equilibrium_inst_reputations, init_inst_reputation)
+				pop.is_follower[rand(1:pop.N)] = 1
+				while sum(pop.is_follower) ∉ [0, pop.N]
+					evolve!(pop)
+				end
+				if sum(pop.is_follower) == pop.N
+					successes += 1
+				else
+					failures += 1
 				end
 			end
 
-			coop_freq = mean(coop_freq)
-			reputations = mean(reputations)
-		    strat_freqs = [mean(hcat(strat_freqs...)[x,:]) for x in 1:4]
+			reputations = mean(equilibrium_reputations)
+			inst_reputations = mean(equilibrium_inst_reputations)
 
-			pard["coop_freqs"] = coop_freq
+
+			pard["successes"] = successes
+			pard["failures"] = failures
 			pard["reputations"] = reputations
-			pard["strat_freqs"] = strat_freqs
+			pard["inst_reputations"] = inst_reputations
 
             # return data to master process
             put!(results, pard)
@@ -225,7 +239,7 @@ function main(args)
     println(output)
     file = occursin(r"\.csv$", output) ? output : output * ".csv"
     cols = push!(sort(collect(keys(pars))),
-                 ["rep", "coop_freqs", "reputations", "strat_freqs", "seed1", "seed2", "seed3", "seed4"]...)
+                 ["rep", "successes", "failures", "reputations", "inst_reputations", "seed1", "seed2", "seed3", "seed4"]...)
     dat = DataFrame(Dict([(c, Any[]) for c in cols]))
 
     # grab results and output to CSV
@@ -246,4 +260,4 @@ end
 
 #main(ARGS)
 
-main(["--input", "submit/paper_empathy_noRDisc.json"])
+main(["--input", "submit/fixation_paper_independent.json"])

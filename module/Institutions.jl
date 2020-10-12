@@ -30,8 +30,8 @@ module Institutions
 	export evolve!
 	export update_strategies_db!, update_strategies_pc!
 	export update_reputations!, update_actions_and_fitnesses!
-	export get_freqs, get_reputations, get_strat_reputations
-
+	export get_freqs, get_pub_reputations, get_priv_reputations
+	export get_strat_pub_reputations, get_strat_priv_reputations
 	export reputation_norm, determine_action, mutate!
 
 	struct Game
@@ -91,6 +91,7 @@ module Institutions
 		fitnesses::Array{Float64, 1} # array of fitnesses
 		permitted_strategies::Array{Int64, 1} # which strategies are allowed to appear
 		generation::Int64 # current generation
+		independent_board::Bool # make the institution independent or not?
 		verbose::Bool # turn this on for error tracking
 
 	end
@@ -101,7 +102,7 @@ module Institutions
 		game::Game,
 		norm::String,
 		initial_strategies::Array{Int64, 1}=[1,2,3,4],
-		verbose::Bool=false
+		independent_board::Bool=false
 		)
 		# begin by initializing the population with random strategies
 		strategies = rand(initial_strategies, N)
@@ -118,7 +119,7 @@ module Institutions
 		return Population(N, Q, q, game, norm, strategies, empathies,
 			is_follower, priv_reputations, pub_reputations,
 			prev_actions, fitnesses, permitted_strategies,
-			generation, verbose)
+			generation, independent_board, false)
 	end
 
 	function institution_population(
@@ -128,7 +129,7 @@ module Institutions
 		game::Game,
 		norm::String,
 		initial_strategies::Array{Int64, 1}=[1,2,3,4],
-		verbose::Bool=false
+		independent_board::Bool=false
 		)
 		# begin by initializing the population with random strategies
 		strategies = rand(initial_strategies, N)
@@ -144,7 +145,7 @@ module Institutions
 		return Population(N, Q, q, game, norm, strategies, empathies,
 			is_follower, priv_reputations, pub_reputations,
 			prev_actions, fitnesses, permitted_strategies,
-			generation, verbose)
+			generation, independent_board, false)
 	end
 
 	function fixation_population(
@@ -155,7 +156,7 @@ module Institutions
 		game::Game,
 		norm::String,
 		initial_strategies::Array{Int64, 1}=[3],
-		verbose::Bool=false
+		independent_board::Bool=false
 		)
 		# begin by initializing the population with random strategies
 		strategies = rand(initial_strategies, N)
@@ -171,7 +172,7 @@ module Institutions
 		return Population(N, Q, q, game, norm, strategies, empathies,
 			is_follower, priv_reputations, pub_reputations,
 			prev_actions, fitnesses, permitted_strategies,
-			generation, verbose)
+			generation, independent_board, false)
 	end
 
 	function get_freqs(
@@ -180,16 +181,30 @@ module Institutions
 		return [1.0*sum(pop.strategies .== x)/pop.N for x in 1:4]
 	end
 
-	function get_reputations(
+	function get_pub_reputations(
 		pop::Population
 		)
 		return 1.0*sum(pop.pub_reputations .== 1)/pop.N
 	end
 
-	function get_strat_reputations(
+	function get_priv_reputations(
+		pop::Population
+		)
+		return 1.0*sum(pop.priv_reputations .== 1)/pop.N^2
+	end
+
+	function get_strat_pub_reputations(
 		pop::Population
 		)
 		strat_reps = [1.0*sum((pop.strategies .== x) .* (pop.pub_reputations .== 1))/max(1,sum(pop.strategies .== x)) for x in 1:4]
+		return strat_reps
+	end
+
+	function get_strat_priv_reputations(
+		pop::Population
+		)
+		strat_reps = [sum(sum([(pop.strategies .== x) .* (pop.priv_reputations[n,:] .== 1)
+			for n in 1:pop.N]))/max(1,sum(pop.N*(pop.strategies .== x))) for x in 1:4]
 		return strat_reps
 	end
 
@@ -295,7 +310,11 @@ module Institutions
 			for j in 1:pop.N
 				# i behaves toward j based on i's view of j
 				# (note: i may already have adopted the institutional view)
-				i_intended_action = determine_action(pop.strategies[i], pop.priv_reputations[i,j])
+				if pop.is_follower[i]
+					i_intended_action = determine_action(pop.strategies[i], pop.pub_reputations[j])
+				else
+					i_intended_action = determine_action(pop.strategies[i], pop.priv_reputations[i,j])
+				end
 				i_rand = rand()
 				i_rand > pop.game.u_p ? i_action = i_intended_action : i_action = 0
 				new_actions[i,j] = i_action
@@ -315,6 +334,37 @@ module Institutions
 		pop.prev_actions = new_actions
 	end
 
+	function draw_reputation(
+		pop::Population,
+		i::Int64,
+		j::Int64,
+		k::Int64,
+		board::Bool = false
+		)
+		# examine what j did to k
+		action = pop.prev_actions[j,k]
+		# if empathetic...
+		if rand() < pop.empathies[i]
+			# if j is a follower, look at the institutional view of k
+			if pop.is_follower[j] || board == true
+				normed_reputation = reputation_norm(action, pop.pub_reputations[k], pop.norm)
+			# otherwise, consider j's private view of k
+			else
+				normed_reputation = reputation_norm(action, pop.priv_reputations[j,k], pop.norm)
+			end
+		# if not empathetic...
+		else
+			# if i is a follower, look at the institutional view of k
+			if pop.is_follower[i] || board
+				normed_reputation = reputation_norm(action, pop.pub_reputations[k], pop.norm)
+			# otherwise, consider i's private view of k
+			else
+				normed_reputation = reputation_norm(action, pop.priv_reputations[i,k], pop.norm)
+			end
+		end
+		return normed_reputation
+	end
+
 	function update_reputations!(
 		pop::Population
 		)
@@ -331,12 +381,7 @@ module Institutions
 			for j in 1:pop.N
 				# check a random other individual k and see what j did to k
 				k = rand(1:pop.N)
-				action = pop.prev_actions[j,k]
-				if rand() < pop.empathies[i]
-					normed_reputation = reputation_norm(action, pop.priv_reputations[j,k], pop.norm)
-				else
-					normed_reputation = reputation_norm(action, pop.priv_reputations[i,k], pop.norm)
-				end
+				normed_reputation = draw_reputation(pop, i, j, k)
 				rep_rand = rand()
 				rep_rand > pop.game.u_a ? new_priv_reputations[i,j] = normed_reputation : new_priv_reputations[i,j] = 1 - normed_reputation
 				# if pop.verbose
@@ -351,15 +396,33 @@ module Institutions
 		# if an individual's total reputation, summed over institution members,
 		# is greater than q*Q, their reputation is broadcast as good
 		# otherwise, it is broadcast as bad
-		for i in 1:pop.N
-			new_pub_reputations[i] = (sum(new_priv_reputations[1:pop.Q,i]) > pop.q*pop.Q)
-		end
-		# followers adopt the institution's view
-		for i in 1:pop.N
-			if pop.is_follower[i]
-				new_priv_reputations[i,:] = new_pub_reputations
+		dummy_reputations = zeros(Int64, pop.Q, pop.N)
+		for i in 1:pop.Q
+			for j in 1:pop.N
+				# check a random other individual k and see what j did to k
+				k = rand(1:pop.N)
+				normed_reputation = draw_reputation(pop, i, j, k, pop.independent_board)
+				rep_rand = rand()
+				rep_rand > pop.game.u_a ? dummy_reputations[i,j] = normed_reputation : dummy_reputations[i,j] = 1 - normed_reputation
 			end
 		end
+		for j in 1:pop.N
+			new_pub_reputations[j] = (sum(dummy_reputations[:,j]) > pop.q*pop.Q)
+		end
+
+		# for i in 1:pop.N
+		# 	inst_members = 1:pop.Q
+		# 	#inst_members = rand(1:pop.N,pop.Q)
+		# 	new_pub_reputations[i] = (sum(new_priv_reputations[inst_members,i]) > pop.q*pop.Q)
+		# end
+
+
+		# followers adopt the institution's view
+		# for i in 1:pop.N
+		# 	if pop.is_follower[i]
+		# 		new_priv_reputations[i,:] = new_pub_reputations
+		# 	end
+		# end
 		pop.priv_reputations = new_priv_reputations
 		pop.pub_reputations = new_pub_reputations
 		if pop.verbose

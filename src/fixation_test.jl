@@ -24,7 +24,7 @@ w = 1.0
 q = 0.5
 Q = 1
 
-E = 0.9
+E = 0.0
 rep_norm = "stern judging"
 
 game = Game(b, c, w, u_s, u_p, u_a, "pc")
@@ -35,7 +35,7 @@ equilibrium_reputations = []
 num_trials = 1000
 
 for i in 1:num_trials
-        println("$i")
+        #println("$i")
         pop = fixation_population(N, E, Q, q, game, rep_norm, strategies, verbose)
         for i in 1:100
                 evolve!(pop)
@@ -49,4 +49,5 @@ for i in 1:num_trials
                         global successes += 1
                 end
         end
+        println("$i, $(pop.generation)")
 end

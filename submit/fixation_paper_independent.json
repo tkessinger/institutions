@@ -5,11 +5,19 @@
   },
   "E":
   {
-    "value": [0.0, 1.0]
+    "value": [0.0, 0.9]
+  },
+  "Q":
+  {
+    "value": [1, 2, 50]
+  },
+  "q":
+  {
+    "value": [0.1, 0.3, 0.5, 0.7, 0.9]
   },
   "permitted_strategies":
   {
-    "value": "all"
+    "value": "3"
   },
   "b":
   {
@@ -23,10 +31,6 @@
   {
     "value": 1.0
   },
-  "u_s":
-  {
-    "value": 0.025
-  },
   "u_p":
   {
     "value": 0.02
@@ -35,20 +39,28 @@
   {
     "value": 0.02
   },
+  "independent_board":
+  {
+    "value": [true, false]
+  },
+  "run_type":
+  {
+    "value": "institution"
+  },
   "reputation_norm":
   {
     "value": ["stern judging", "scoring", "shunning", "simple standing"]
   },
-  "num_gens":
-  {
-    "value": 10000
-  },
   "num_trials":
   {
-    "value": 4000
+    "value": 50
+  },
+  "runs_per_trial":
+  {
+    "value": 50
   },
   "output":
   {
-    "value": "output/figure_empathy_long.csv"
+    "value": "output/fixation_paper_board_final.csv"
   }
 }
