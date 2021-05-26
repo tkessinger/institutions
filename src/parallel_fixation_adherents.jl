@@ -6,8 +6,7 @@
 ## Parallelized implementation of Institutions.
 ## Records fixation for institutional adherence
 ## starting from a single adherent.
-## This output corresponds to figure 4
-## and supplementary figures 7-9.
+## This output corresponds to supplementary figure 14.
 
 using Random, Statistics
 using Institutions

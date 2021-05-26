@@ -45,10 +45,10 @@
   },
   "num_trials":
   {
-    "value": 100
+    "value": 1000
   },
   "output":
   {
-    "value": "output/paper_empathy_noRDisc_mufix.csv"
+    "value": "output/paper_empathy_noRDisc.csv"
   }
 }

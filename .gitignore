@@ -5,13 +5,13 @@
 deps/deps.jl
 
 # figures
-figures/*
-old_figures/*
-*.pdf
-*.gif
+# figures/*
+# old_figures/*
+# *.pdf
+# *.gif
 
 # simulation output files
-output/*
+# output/*
 
 # LaTeX/pdfLaTeX auxiliary files
 *.aux

@@ -237,8 +237,7 @@ module Institutions
 			# and only one "step" is allowed.
 			# changing this to allow "free" mutation has minimal effect.
 			old_strat = pop.strategies[n]
-			new_strat = rand(pop.permitted_strategies)
-			#new_strat = ((4 - pop.strategies[n])÷2)*2+rand([1,2])
+			new_strat = ((4 - pop.strategies[n])÷2)*2+rand([1,2])
 			# if the new strategy is permitted, use it
 			if new_strat ∈ pop.permitted_strategies
 				pop.strategies[n] = new_strat
