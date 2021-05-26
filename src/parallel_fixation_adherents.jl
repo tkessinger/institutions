@@ -1,12 +1,13 @@
 #!/usr/bin/env julia
 
-## parallel_fig3_redo_E.jl
+## parallel_fixation_variable_b.jl
 ##
 ## Author: Taylor Kessinger <tkess@sas.upenn.edu>
 ## Parallelized implementation of Institutions.
-## Initializes a population of empathetic non-adherents,
-## allows them to evolve and update strategy,
-## and records frequency, reputation, and cooperation level.
+## Records fixation for institutional adherence
+## starting from a single adherent.
+## This output corresponds to figure 4
+## and supplementary figures 7-9.
 
 using Random, Statistics
 using Institutions
@@ -18,13 +19,10 @@ using Dates
 using DataFrames
 import JSON
 
-function read_parameters(
-	defpars::Dict{String,Any},
-    inputfile = nothing
-	)
+function read_parameters(defpars::Dict{String,Any},
+    inputfile = nothing)
 	# read and parse JSON file
 	# to pass parameters to a worker
-
 
     pars = copy(defpars)
 
@@ -45,7 +43,7 @@ function read_parameters(
             # default type is Float64
             T = Float64
         end
-        #println(parkey, T)
+
         if T <: Int
             convertf = (val)->round(T, val)
         else
@@ -105,16 +103,20 @@ function main(args)
     defpars = Dict{String,Any}([
         "N"     => Dict("value" => 50, "type" => Int64),
         "E"     => Dict("value" => 1.0, "type" => Float64),
+		"Q"		=> Dict("value" => 1, "type" => Int64),
+		"q"		=> Dict("value" => 1, "type" => Float64),
 		"b"     => Dict("value" => 1.0,     "type" => Float64),
 		"c"     => Dict("value" => 0.1,     "type" => Float64),
 		"w"     => Dict("value" => 1.0,     "type" => Float64),
-		"u_s"     => Dict("value" => 0.01,     "type" => Float64),
+		"u_s"     => Dict("value" => 0.0,     "type" => Float64),
 		"u_p"     => Dict("value" => 0.01,     "type" => Float64),
 		"u_a"     => Dict("value" => 0.01,     "type" => Float64),
+		"run_type" => Dict("value" => "middle", "type" => String),
 		"reputation_norm" => Dict("value" => "stern judging", "type" => String),
         "permitted_strategies" => Dict("value" => "all", "type" => String),
-        "num_gens" => Dict("value" => 10000, "type" => Int64),
+		"independent_board"     => Dict("value" => true,     "type" => Bool),
         "num_trials" => Dict("value" => 50, "type" => Int64),
+		"runs_per_trial" => Dict("value" => 50, "type" => Int64),
         "output" => Dict("value" => "output/test.csv", "type" => String)
     ])
     pars = read_parameters(defpars, parsed_args["input"])
@@ -124,12 +126,13 @@ function main(args)
     nsets = length(parsets)
 
     # setup workers assuming directory is manually added to LOAD_PATH
-    addprocs(min(parsed_args["ncpus"], round(Int64, Sys.CPU_THREADS / 2)))
+    addprocs(min(parsed_args["ncpus"], round(Int64, Sys.CPU_THREADS)))
     wpool = WorkerPool(workers())
     #extradir = filter((p)->match(r"/", p) !== nothing, LOAD_PATH)[1]
     extradir = filter((p)->match(r"/", p) !== nothing, LOAD_PATH)
     #@everywhere workers() push!(LOAD_PATH, $extradir)
     [@everywhere workers() push!(LOAD_PATH, $x) for x in extradir]
+	# make relevant modules available to each worker
     @everywhere workers() eval(:(using Random))
     @everywhere workers() eval(:(using Statistics))
     @everywhere workers() eval(:(using Institutions))
@@ -143,11 +146,14 @@ function main(args)
         seed = Dict(zip(["seed1", "seed2", "seed3", "seed4"], Random.MersenneTwister().seed))
 
         while true
+			# append seed to parameter dictionary
             pard = take!(inputs)
             pard = merge(pard, seed)
 
             N = pard["N"] # population size
 			E = pard["E"] # empathy
+			Q = pard["Q"] # institution size
+			q = pard["q"] # institution threshold
 
 			reputation_norm = pard["reputation_norm"] # social norm
 
@@ -162,12 +168,20 @@ function main(args)
 			b = pard["b"] # benefit to cooperation
 			c = pard["c"] # cost to cooperation
 			w = pard["w"] # selection strength
+			# is the board external or not?
+			independent_board = pard["independent_board"]
 
 			u_s = pard["u_s"] # mutation rate
 			u_p = pard["u_p"] # performance error (e1)
 			u_a = pard["u_a"] # assessment error (e2)
 
-			num_gens = pard["num_gens"] # number of generations
+			# type of run
+			run_type = pard["run_type"]
+
+			# num_trials independent runs will ultimately be initialized
+			# each one will sample runs_per_trial times
+			num_trials = pard["num_trials"]
+			runs_per_trial = pard["runs_per_trial"]
 
 			# name of output file
             output = pard["output"]
@@ -175,35 +189,81 @@ function main(args)
             println("--- running ", pard["nrun"], " --- ")
             flush(stdout)
 
-			# initialize game and population
+			# initialize game
 			game = Game(b, c, w, u_s, u_p, u_a, "pc")
-			pop = empathy_population(N, E, game, reputation_norm, permitted_strategies)
 
 			total_interactions = N^2
 
-			coop_freq = Float64[]
-			reputations = Float64[]
-			strat_freqs = Array{Float64, 1}[]
+			# initialize success/failure counters and reputations
+			successes = 0
+			failures = 0
+			equilibrium_reputations = Float64[]
+			equilibrium_inst_reputations = Float64[]
 
-			for g in 1:num_gens
-				evolve!(pop)
-				# allow num_gens/2 burn-in time, then start recording
-				if g > num_gens/2
-					# record coop frequency, reputations, and strategy frequencies
-					push!(coop_freq, sum(pop.prev_actions)/total_interactions)
-					push!(reputations, get_priv_reputations(pop))
-					push!(strat_freqs, get_freqs(pop))
+			for g in 1:runs_per_trial
+				# initialize population with all Disc
+				pop = fixation_population(N, E, Q, q, game, reputation_norm, permitted_strategies, independent_board)
+				# if multiple strategies are allowed,
+				# decide where on the simplex the population begins
+				# i.e., alter strategies
+				if run_type == "equal"
+					pop.strategies[1:(pop.N÷3)] .= 1
+					pop.strategies[(pop.N÷3 + 1):(2*pop.N÷3)] .= 2
+					pop.strategies[(2* pop.N÷3 + 1):pop.N] .= 3
+				elseif run_type == "AllC"
+					pop.strategies[1:(pop.N-4)] .= 1
+					pop.strategies[(pop.N-3):(pop.N-2)] .= 2
+					pop.strategies[(pop.N-1):pop.N] .= 3
+				elseif run_type == "AllD"
+					pop.strategies[1:2] .= 1
+					pop.strategies[3:(pop.N-2)] .= 2
+					pop.strategies[(pop.N-1):pop.N] .= 3
+				elseif run_type == "Disc"
+					pop.strategies[1:2] .= 1
+					pop.strategies[3:4] .= 2
+					pop.strategies[5:pop.N] .= 3
+				else
+				end
+				# allow reputations to equilibrate
+				for i in 1:100
+					update_actions_and_fitnesses!(pop)
+					update_reputations!(pop)
+				end
+				# record initial reputations
+				init_reputation = sum(pop.priv_reputations)/N^2
+				init_inst_reputation = sum(pop.pub_reputations)/N
+				push!(equilibrium_reputations, init_reputation)
+				push!(equilibrium_inst_reputations, init_inst_reputation)
+				# if a discriminator exists, randomly make one a non-follower
+				# else, make a discriminator and make it a non-follower
+				pop.is_follower .= 1
+				if sum([pop.strategies[x] .== 3 for x in 1:pop.N]) > 0
+					pop.is_follower[rand(filter(x -> pop.strategies[x] .== 3, 1:pop.N))] = 0
+				else
+					x = rand(1:pop.N)
+					pop.strategies[x] = 3
+					pop.is_follower[x] = 0
+				end
+				# evolve population until fixation or extinction
+				while sum(pop.is_follower) ∉ [0, pop.N]
+					evolve!(pop)
+				end
+				# record success (fixation) or failure (extinction)
+				if sum(pop.is_follower) == pop.N
+					successes += 1
+				else
+					failures += 1
 				end
 			end
 
-			# take averages
-			coop_freq = mean(coop_freq)
-			reputations = mean(reputations)
-		    strat_freqs = [mean(hcat(strat_freqs...)[x,:]) for x in 1:4]
+			# record the average reputation over many runs
+			reputations = mean(equilibrium_reputations)
+			inst_reputations = mean(equilibrium_inst_reputations)
 
-			pard["coop_freqs"] = coop_freq
+			pard["successes"] = successes
+			pard["failures"] = failures
 			pard["reputations"] = reputations
-			pard["strat_freqs"] = strat_freqs
+			pard["inst_reputations"] = inst_reputations
 
             # return data to master process
             put!(results, pard)
@@ -216,7 +276,6 @@ function main(args)
     nruns = 0
     for parset in parsets
         pard = Dict(zip(keys(pars), parset))
-        #println(pard)
         println("--- queueing --- ")
         foreach(k->print(k, ": ", pard[k], ", "), sort(collect(keys(pard))))
         println()
@@ -240,7 +299,7 @@ function main(args)
     println(output)
     file = occursin(r"\.csv$", output) ? output : output * ".csv"
     cols = push!(sort(collect(keys(pars))),
-                 ["rep", "coop_freqs", "reputations", "strat_freqs", "seed1", "seed2", "seed3", "seed4"]...)
+                 ["rep", "successes", "failures", "reputations", "inst_reputations", "seed1", "seed2", "seed3", "seed4"]...)
     dat = DataFrame(Dict([(c, Any[]) for c in cols]))
 
     # grab results and output to CSV
@@ -260,4 +319,4 @@ function main(args)
 end
 
 # specify input file here
-main(["--input", "submit/paper_empathy_noRDisc.json"])
+main(["--input", "submit/fixation_paper_adherents.json"])

@@ -1,12 +1,11 @@
 #!/usr/bin/env julia
 
-## plt_coop_freqs_discfreq.jl
+## plt_test_results.jl
 ##
 ## Author: Taylor Kessinger <tkess@sas.upenn.edu>
 ## Plot results from Institutions simulations.
 ## Look at cooperation frequency
 ## as a function of Q, q, and social norm.
-## This script corresponds to figure 3.
 
 using CSV, PyPlot, Statistics
 
@@ -15,7 +14,7 @@ runs = CSV.read("output/paper_institutions_noRDisc.csv")
 
 empathy_runs = CSV.read("output/paper_empathy_noRDisc.csv")
 
-# dicts to store cooperation, frequencies, etc.
+# dicts to store frequencies
 coop_freqs = Dict{Tuple{String, Int64, Float64},Array{Float64, 1}}()
 reps = Dict{Tuple{String, Int64, Float64},Array{Float64, 1}}()
 strat_freqs = Dict{Tuple{String, Int64, Float64},Array{Array{Float64, 1}}}()
@@ -28,6 +27,7 @@ N = sort(unique(runs[:N]))[1]
 
 Q_vals = unique(runs[:Q])
 q_vals = unique(runs[:q])
+#norms = unique(runs[:reputation_norm])
 norms = ["stern judging", "simple standing", "scoring", "shunning"]
 
 num_samples = sort(unique(runs[:num_trials]))[1]
@@ -36,18 +36,22 @@ param_combs = collect(Base.product(norms, Q_vals, q_vals))
 
 for (pi, param_comb) in enumerate(param_combs)
     norm, Q, q = param_comb
+    #println("$param_comb")
     coop_freqs[param_comb] = Float64[]
 	reps[param_comb] = Float64[]
 	strat_freqs[param_comb] = Array{Float64,1}[]
-	# filter for correct parameter values
+	#strat_freqs[param_comb]
     tmp_runs = runs[(runs[:Q] .== Q) .& (runs[:q] .== q) .& (runs[:reputation_norm] .== norm), :]
 	println("$param_comb, $(size(tmp_runs, 1))")
     for (ri, run) in enumerate(eachrow(tmp_runs[:,:]))
+		#println("$ri")
 		push!(coop_freqs[param_comb], run[:coop_freqs])
 		push!(reps[param_comb], run[:reputations])
-		# parse frequencies string into array
         freqs_rows = split.(run[:strat_freqs][2:end-1], r", ")
 		push!(strat_freqs[param_comb], map(x -> parse(Float64,x), freqs_rows))
+		# rep_means_rows = split.(run[:reputation_means][2:end-1], r", ")
+		# rep_stds_rows = split.(run[:reputation_stds][2:end-1], r", ")
+		#set_rep_means_rows = split.(run[:set_reputation_means][2:end-1], ";")
     end
 end
 
@@ -58,13 +62,14 @@ E_params = collect(Base.product(norms, E_vals))
 
 for (pi, param_comb) in enumerate(E_params)
     norm, E = param_comb
+    #println("$param_comb")
     E_coop_freqs[param_comb] = Float64[]
 	E_strat_freqs[param_comb] = Array{Float64,1}[]
     tmp_runs = empathy_runs[(empathy_runs[:E] .== E) .& (empathy_runs[:reputation_norm] .== norm), :]
 	println("$param_comb, $(size(tmp_runs, 1))")
     for (ri, run) in enumerate(eachrow(tmp_runs[:,:]))
+		#println("$ri")
 		push!(E_coop_freqs[param_comb], run[:coop_freqs])
-		# parse frequencies string into array
 		freqs_rows = split.(run[:strat_freqs][2:end-1], r", ")
 		push!(E_strat_freqs[param_comb], map(x -> parse(Float64,x), freqs_rows))
     end
@@ -75,14 +80,17 @@ E_param_combs = reshape(E_params, length(E_params))
 
 plotcolors = ["tab:blue", "tab:orange", "tab:green", "tab:red", "tab:purple", "tab:brown"]
 
-cs = ["tab:blue", "tab:green", "tab:red", "tab:orange"]
+cs = ["blue", "green", "red", "orange"]
 
-e_cs = ["tab:purple", "black"]
+e_cs = ["yellow", "black"]
 
 sub_norms = ["stern judging", "simple standing", "scoring", "shunning"]
 
-fig, axs = plt.subplots(1,length(sub_norms), figsize=(3*length(sub_norms),4), sharey="row")
+strat_strings = ["AllC", "AllD", "Disc", "RDisc"]
+
+fig, axs = plt.subplots(2,2, figsize=(8, 6), sharey="row", sharex="col")
 for (ni, norm) in enumerate(sub_norms)
+	#fig = plt.figure()
 	ax = axs[ni]
 	title_string = "$norm"
 
@@ -108,18 +116,17 @@ for (ni, norm) in enumerate(sub_norms)
 			strat_stds[:, qi] = [std(hcat(strat_freqs[norm, Q, q]...)[x,:]) for x in 1:4]
 		end
 		if Q == 2
-			# hack to produce the "jump" visible in our Q = 2 plots
 			mod_qvals = vcat(q_vals[1:2], [0.499999], q_vals[3:end])
 			mod_means = vcat(coop_means[Qi,1:2], [coop_means[Qi,2]], coop_means[Qi,3:end])
 			mod_stds = vcat(coop_stds[Qi,1:2], [coop_stds[Qi,2]], coop_stds[Qi,3:end])
 			ax.errorbar(mod_qvals, mod_means,
-				#2 for 99% confidence intervals
+				#[coop_stds[Qi,:]/sqrt(length(coop_freqs[norm, Q, q])) for q in q_vals],
 				2*mod_stds/sqrt(num_samples),
 				label="Q = $Q",
 				color=cs[Qi])
 		else
 			ax.errorbar(q_vals, coop_means[Qi,:],
-				#2 for 99% confidence intervals
+				#[coop_stds[Qi,:]/sqrt(length(coop_freqs[norm, Q, q])) for q in q_vals],
 				2*coop_stds[Qi,:]/sqrt(num_samples),
 				label="Q = $Q",
 				color=cs[Qi])
@@ -127,30 +134,33 @@ for (ni, norm) in enumerate(sub_norms)
 	end
 	for (Ei, E) in enumerate(E_vals)
 		E_coop_means[Ei] = mean(E_coop_freqs[norm, E])
-		ax.hlines(E_coop_means[Ei], 0, 1, linestyle="--", label = "empathy = $E", color = e_cs[Ei])
+		if Ei == 1
+			ax.hlines(E_coop_means[Ei], 0, 1, linestyle="dashed", label = "private", color = e_cs[2])
+		#elseif Ei == 2
+			#ax.hlines(E_coop_means[Ei], 0, 1, linestyle="dotted", label = "empathy = $E", color = e_cs[2])
+		end
 	end
 	if ni == 1
 		ax.legend(loc=3)
+	end
+	if ni ∈ [1,2]
 		ax.set_ylabel("cooperation")
+	end
+	if ni ∈ [2,4]
+		ax.set_xlabel("q")
 	end
 	ax.set_ylim([0,1])
 	ax.set_xlim([0,1])
 
 	ax.set_title(title_string)
 end
-fig.text(0.5,0.04, "institution strictness q", ha="center", va="center", fontsize="16")
-fig.tight_layout(rect=[0, 0.03, 1, 0.96])
+fig.tight_layout()
 display(fig)
-#plt.savefig("figures/fig3_paper_coop.pdf")
 
-# uncomment the following to produce plots of
-# strategy frequencies
-
-strat_labels = ["AllC", "AllD", "Disc"]
-
-fig, axs = plt.subplots(length(Q_vals), length(sub_norms), figsize=(5*length(sub_norms),20), sharey="row", sharex="col")
+fig, axs = plt.subplots(length(Q_vals), length(sub_norms), figsize=(2*length(sub_norms),8), sharey="row", sharex="col")
 for (Qi, Q) in enumerate(Q_vals)
 	for (ni, norm) in enumerate(sub_norms)
+		#fig = plt.figure()
 		ax = axs[Qi, ni]
 		#title_string = "norm = $norm"
 
@@ -169,7 +179,7 @@ for (Qi, Q) in enumerate(Q_vals)
 		for i in 1:3
 			ax.errorbar(q_vals, strat_means[i,:],
 				strat_stds[i,:]/sqrt(num_samples),
-				label="$(strat_labels[i])", c = cs[i])
+				label="$(strat_strings[i])", c = cs[i])
 			[ax.hlines(
 				mean(hcat(E_strat_freqs[norm, E_val]...)[i,:]),
 				minimum(q_vals), maximum(q_vals),
@@ -187,9 +197,9 @@ for (Qi, Q) in enumerate(Q_vals)
 			ax.set_title("$norm")
 		end
 		if Qi == length(Q_vals)
-			ax.set_xlabel("institution strictness, q")
+			ax.set_xlabel("q")
 		end
-		if ni == 1
+		if ni == 1 && Qi == 1
 			ax.legend(loc=3)
 			ax.set_ylabel("Q = $Q")
 		end
@@ -199,5 +209,5 @@ for (Qi, Q) in enumerate(Q_vals)
 		#ax.set_title(title_string)
 	end
 end
-fig.tight_layout(rect=[0, 0.03, 1, 0.96])
+fig.tight_layout()
 display(fig)

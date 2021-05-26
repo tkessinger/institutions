@@ -6,7 +6,7 @@ deps/deps.jl
 
 # figures
 figures/*
-project1_simplified_figures/*
+old_figures/*
 *.pdf
 *.gif
 
@@ -34,4 +34,3 @@ nohup.out
 
 # dummy .py files
 *.py
-

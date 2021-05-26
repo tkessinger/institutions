@@ -49,10 +49,10 @@
   },
   "num_trials":
   {
-    "value": 1000
+    "value": 100
   },
   "output":
   {
-    "value": "output/paper_institutions_noRDisc.csv"
+    "value": "output/paper_institutions_noRDisc_mufix.csv"
   }
 }

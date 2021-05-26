@@ -37,7 +37,7 @@
   },
   "u_s":
   {
-    "value": 0.02
+    "value": 0.00
   },
   "u_p":
   {
@@ -65,6 +65,6 @@
   },
   "output":
   {
-    "value": "output/fixation_paper_multitype.csv"
+    "value": "output/fixation_paper_multitype_final.csv"
   }
 }

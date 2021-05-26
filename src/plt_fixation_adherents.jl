@@ -10,7 +10,7 @@
 using CSV, PyPlot, Statistics
 
 # load simulation output as a dataframe
-runs = CSV.read("output/fixation_paper_variable_b.csv")
+runs = CSV.read("output/fixation_paper_adherents.csv")
 
 # get unique values from the runs dataframe
 N = sort(unique(runs[:N]))[1]
@@ -18,7 +18,8 @@ num_samples = sort(unique(runs[:num_trials]))[1]
 b_vals = unique(runs[:b])
 Q_vals = unique(runs[:Q])
 q_vals = unique(runs[:q])
-E_vals = unique(runs[:E])
+#E_vals = unique(runs[:E])
+E_vals = [0.0]
 
 # set up norms
 norms = ["stern judging", "simple standing", "scoring", "shunning"]
@@ -61,7 +62,7 @@ for (bi, b) in enumerate(b_vals)
 			for (Ei, E) in enumerate(E_vals)
 				# for each norm
 				for (ni, norm) in enumerate(sub_norms)
-					ax = axs[Ei, ni]
+					ax = axs[ni]
 					title_string = "$norm"
 
 					for (Qi, Q) in enumerate(Q_vals)
@@ -86,17 +87,17 @@ for (bi, b) in enumerate(b_vals)
 						end
 					end
 					# "neutral" fixation probability line at 1/N
-					ax.hlines(1.0/N, 0, 1, linestyle = "--")
+					ax.hlines(1 - 1.0/N, 0, 1, linestyle = "--")
 					equ_reputation = sum([sum([reputations[norm, E, Q, q] for q in q_vals]) for Q in Q_vals])/(length(q_vals)*length(Q_vals))
-					ax.vlines(equ_reputation, 0, 1, linestyle = "--")
+					#ax.vlines(equ_reputation, 0, 1, linestyle = "--")
 					#ax.set_xlabel("q")
 					if ni == 1
-						ax.set_ylabel("E = $E")
+						#ax.set_ylabel("E = $E")
 						if Ei == 1
-							ax.legend(loc=2)
+							ax.legend(loc=4)
 						end
 					end
-					ax.set_ylim([0,0.8])
+					ax.set_ylim([0.5,1])
 					ax.set_xlim([0,1])
 					if Ei == 1
 						ax.set_title(title_string)
@@ -110,12 +111,12 @@ for (bi, b) in enumerate(b_vals)
 				titlestring *= "internal board"
 			end
 			titlestring *= ", b = $b"
-			fig.suptitle("$titlestring")
-			fig.text(0.5,0.04, "institution strictness q", ha="center", va="center", fontsize="16")
+			#fig.suptitle("$titlestring")
+			fig.text(0.5,0.04, "institution strictness " * L" q", ha="center", va="center", fontsize="16")
 			fig.text(0.02,0.5, "fixation probability", ha="center", va="center", fontsize="16", rotation="90")
 			fig.tight_layout(rect=[0.02, 0.04, 1, 0.96])
 			display(fig)
-			plt.savefig("figures/fig4_paper_variant_board_$(indep)_var_b_$(b)_max_08.pdf")
+			plt.savefig("figures/fig4_paper_adherents_board_$(indep)_var_b_$(b)_notitle.pdf")
 		end
 	end
 end

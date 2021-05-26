@@ -1,9 +1,12 @@
 #!/usr/bin/env julia
 
-## parallel_lending.jl
+## parallel_fig3_redo.jl
 ##
 ## Author: Taylor Kessinger <tkess@sas.upenn.edu>
 ## Parallelized implementation of Institutions.
+## Initializes a population of institutional adherents,
+## allows them to evolve and update strategy,
+## and records frequency, reputation, and cooperation level.
 
 using Random, Statistics
 using Institutions
@@ -15,8 +18,12 @@ using Dates
 using DataFrames
 import JSON
 
-function read_parameters(defpars::Dict{String,Any},
-    inputfile = nothing)
+function read_parameters(
+	defpars::Dict{String,Any},
+    inputfile = nothing
+	)
+	# read and parse JSON file
+	# to pass parameters to a worker
 
     pars = copy(defpars)
 
@@ -76,6 +83,10 @@ function read_parameters(defpars::Dict{String,Any},
 end
 
 function main(args)
+	# main simulation function:
+	# parse parameters, take their Cartesian product,
+	# run the actual simulation,
+	# and record output
 
     s = ArgParseSettings(description =
         "run ReputationSets simulations across multiple cores")
@@ -135,43 +146,41 @@ function main(args)
             pard = take!(inputs)
             pard = merge(pard, seed)
 
-            N = pard["N"]
-			Q = pard["Q"]
-			q = pard["q"]
+            N = pard["N"] # population size
+			Q = pard["Q"] # institution size
+			q = pard["q"] # strictness
 
-			reputation_norm = pard["reputation_norm"]
+			reputation_norm = pard["reputation_norm"] # social norm
 
+			# parse permitted strategies
 			if pard["permitted_strategies"] == "all"
 				permitted_strategies = [1,2,3,4]
 			else
 				permitted_strategies = parse.(Int64, split(pard["permitted_strategies"], ""))
 			end
 
-			b = pard["b"]
-			c = pard["c"]
-			w = pard["w"]
+			# game parameters
+			b = pard["b"] # benefit to cooperation
+			c = pard["c"] # cost to cooperation
+			w = pard["w"] # selection strength
 
-			u_s = pard["u_s"]
-			u_p = pard["u_p"]
-			u_a = pard["u_a"]
+			u_s = pard["u_s"] # mutation rate
+			u_p = pard["u_p"] # performance error (e1)
+			u_a = pard["u_a"] # assessment error (e2)
 
-			num_gens = pard["num_gens"]
+			num_gens = pard["num_gens"] # number of generations
 
+			# name of output file
             output = pard["output"]
 
             println("--- running ", pard["nrun"], " --- ")
             flush(stdout)
 
+			# initialize game and population
 			game = Game(b, c, w, u_s, u_p, u_a, "pc")
 			pop = institution_population(N, Q, q, game, reputation_norm, permitted_strategies)
 
-			# initialize all as DISC
-			# pop.strategies = 3*ones(Int64, pop.N)
-
-			# total_interactions = N*(N-1)
-			# NOTE: this is only valid for self interactions
 			total_interactions = N^2
-
 
 			coop_freq = Float64[]
 			reputations = Float64[]
@@ -179,13 +188,16 @@ function main(args)
 
 			for g in 1:num_gens
 				evolve!(pop)
+				# allow num_gens/2 burn-in time, then start recording
 				if g > num_gens/2
+					# record coop frequency, reputations, and strategy frequencies
 					push!(coop_freq, sum(pop.prev_actions)/total_interactions)
 					push!(reputations, get_pub_reputations(pop))
 					push!(strat_freqs, get_freqs(pop))
 				end
 			end
 
+			# take averages
 			coop_freq = mean(coop_freq)
 			reputations = mean(reputations)
 		    strat_freqs = [mean(hcat(strat_freqs...)[x,:]) for x in 1:4]
@@ -248,6 +260,5 @@ function main(args)
     println("total time elapsed: $total_time")
 end
 
-#main(ARGS)
-
+# specify input file here
 main(["--input", "submit/paper_institutions_noRDisc.json"])
